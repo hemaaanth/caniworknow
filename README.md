@@ -35,6 +35,10 @@ npm run preview
 
 ## Deployment
 
-The production output is a static `dist/` directory and is ready for GitHub Pages. The Vite base defaults to `/`, which is appropriate for the custom domain `caniworknow.com`.
+The production output is a static `dist/` directory. Publish it to the repository's `gh-pages` branch with:
 
-Live status/API integration intentionally comes after design approval.
+```bash
+npm run deploy
+```
+
+The Vite base defaults to `/`, which is appropriate once the custom domain `caniworknow.com` is attached. Live status/API integration intentionally comes after design approval.
