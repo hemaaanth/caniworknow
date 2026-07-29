@@ -35,10 +35,8 @@ npm run preview
 
 ## Deployment
 
-The production output is a static `dist/` directory. Publish it to the repository's `gh-pages` branch with:
+Production deploys automatically to Vercel from the private GitHub repository. The custom domain is:
 
-```bash
-npm run deploy
-```
+- https://caniworknow.com
 
-The Vite base defaults to `/`, which is appropriate once the custom domain `caniworknow.com` is attached. Live status/API integration intentionally comes after design approval.
+The Vite production output remains a static `dist/` directory. Live status/API integration intentionally comes after design approval.
