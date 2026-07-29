@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { GrainGradient } from '@paper-design/shaders-react'
-import { mockIssues } from './data/issues'
+import {
+  createFaviconSvg,
+  type Answer,
+  type LiveStatusResponse,
+  type ServiceId,
+  type ServiceStatus,
+} from './lib/status'
 import './App.css'
-
-type StatusMode = 'up' | 'down'
 
 type MediaState = {
   dark: boolean
   reducedMotion: boolean
   coarsePointer: boolean
 }
+
+const CACHE_KEY = 'caniworknow:live-status'
+const CACHE_MAX_AGE_MS = 15 * 60 * 1000
 
 const readMedia = (): MediaState => ({
   dark: window.matchMedia('(prefers-color-scheme: dark)').matches,
@@ -34,10 +41,129 @@ function useMediaState() {
   return media
 }
 
-function App() {
-  const [mode, setMode] = useState<StatusMode>(() =>
-    new URLSearchParams(window.location.search).get('state') === 'down' ? 'down' : 'up',
+function readCachedStatus(): LiveStatusResponse | null {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '') as LiveStatusResponse
+    if (Date.now() - Date.parse(cached.checkedAt) > CACHE_MAX_AGE_MS) return null
+    return cached
+  } catch {
+    return null
+  }
+}
+
+function useLiveStatus() {
+  const [status, setStatus] = useState<LiveStatusResponse | null>(readCachedStatus)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/status', {
+          headers: { accept: 'application/json' },
+          signal: controller.signal,
+        })
+        if (!response.ok) throw new Error(`Status request failed: ${response.status}`)
+        const next = await response.json() as LiveStatusResponse
+        setStatus(next)
+        localStorage.setItem(CACHE_KEY, JSON.stringify(next))
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setStatus((current) => current ?? readCachedStatus())
+      }
+    }
+
+    void refresh()
+    const interval = window.setInterval(refresh, 60_000)
+    return () => {
+      controller.abort()
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  return status
+}
+
+function ServiceIcon({ id }: { id: ServiceId }) {
+  if (id === 'github') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="7" cy="6" r="2.2" />
+        <circle cx="17" cy="6" r="2.2" />
+        <circle cx="12" cy="18" r="2.2" />
+        <path d="M7 8.2v2.2c0 2 1.6 3.6 3.6 3.6H12m5-5.8v2.2c0 2-1.6 3.6-3.6 3.6H12v1.8" />
+      </svg>
+    )
+  }
+
+  if (id === 'cloudflare') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5.5 17.5h12.8a3.2 3.2 0 0 0 .2-6.4 6.6 6.6 0 0 0-12.7 1.7 2.4 2.4 0 0 0-.3 4.7Z" />
+      </svg>
+    )
+  }
+
+  if (id === 'claude') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2.8v18.4M2.8 12h18.4M5.5 5.5l13 13M18.5 5.5l-13 13M8.6 3.5l6.8 17M20.5 8.6l-17 6.8" />
+      </svg>
+    )
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m12 2.8 8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6Z" />
+      <path d="m9 9 3-1.7L15 9v3.5l-3 1.8-3-1.8V9Zm3 5.3v3.4" />
+    </svg>
   )
+}
+
+function Systems({ services }: { services: ServiceStatus[] }) {
+  return (
+    <nav className="systems" aria-label="Systems monitored">
+      {services.map((service) => (
+        <a
+          className="system-icon"
+          data-health={service.health}
+          data-tooltip={`${service.name} · ${service.health}`}
+          href={service.links[0].url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`${service.name}: ${service.health}. Open official status.`}
+          key={service.id}
+        >
+          <ServiceIcon id={service.id} />
+        </a>
+      ))}
+    </nav>
+  )
+}
+
+const FALLBACK_SERVICES: ServiceStatus[] = (['github', 'cloudflare', 'claude', 'codex'] as ServiceId[]).map((id) => ({
+  id,
+  name: id === 'github' ? 'GitHub' : id === 'cloudflare' ? 'Cloudflare' : id === 'claude' ? 'Claude' : 'Codex',
+  health: 'unknown',
+  detail: 'Checking live status',
+  sources: [],
+  links: [{
+    label: 'Official status',
+    url: id === 'github'
+      ? 'https://www.githubstatus.com/'
+      : id === 'cloudflare'
+        ? 'https://www.cloudflarestatus.com/'
+        : id === 'claude'
+          ? 'https://status.claude.com/'
+          : 'https://status.openai.com/',
+  }],
+}))
+
+function App() {
+  const status = useLiveStatus()
+  const answer: Answer = status?.answer ?? 'unknown'
+  const services = status?.services ?? FALLBACK_SERVICES
+  const issues = services.filter((service) => service.health === 'outage' || service.health === 'degraded')
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
   const { dark, reducedMotion, coarsePointer } = useMediaState()
   const panelRef = useRef<HTMLElement>(null)
@@ -47,7 +173,7 @@ function App() {
   const pointerFrame = useRef<number | null>(null)
 
   const shader = useMemo(() => {
-    if (mode === 'up') {
+    if (answer !== 'no') {
       return dark
         ? { colors: ['#071915', '#17453a', '#395c48', '#7a654c'], back: '#050806' }
         : { colors: ['#f4efe2', '#bfddcf', '#83c3aa', '#f0bea0'], back: '#f4efe2' }
@@ -55,20 +181,19 @@ function App() {
     return dark
       ? { colors: ['#17090a', '#4f1017', '#af2932', '#80602d'], back: '#090505' }
       : { colors: ['#f2e5da', '#eb7358', '#a31728', '#d9a342'], back: '#f2e5da' }
-  }, [dark, mode])
+  }, [answer, dark])
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
-      if (event.key.toLowerCase() === 'y') setMode('up')
-      if (event.key.toLowerCase() === 'n') setMode('down')
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+    const icon = document.querySelector<HTMLLinkElement>('link[rel~="icon"]') ?? document.createElement('link')
+    icon.rel = 'icon'
+    icon.type = 'image/svg+xml'
+    icon.href = `data:image/svg+xml,${encodeURIComponent(createFaviconSvg(answer))}`
+    if (!icon.parentNode) document.head.appendChild(icon)
+    document.title = `${answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : 'CHECKING'} — Can I Work Now`
+  }, [answer])
 
   useEffect(() => {
-    if (mode !== 'down' || coarsePointer) return
+    if (answer !== 'no' || coarsePointer) return
 
     let frame = 0
     const animate = () => {
@@ -83,43 +208,49 @@ function App() {
     }
     frame = window.requestAnimationFrame(animate)
     return () => window.cancelAnimationFrame(frame)
-  }, [coarsePointer, mode, reducedMotion])
+  }, [answer, coarsePointer, reducedMotion])
 
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    if (coarsePointer || panelHoverRef.current) return
+    if (!coarsePointer && answer === 'no' && !panelHoverRef.current) {
+      const panelWidth = panelRef.current?.offsetWidth ?? 350
+      const panelHeight = panelRef.current?.offsetHeight ?? 280
+      const gap = 26
+      targetRef.current = {
+        x: Math.max(18, Math.min(event.clientX + gap, window.innerWidth - panelWidth - 18)),
+        y: Math.max(18, Math.min(event.clientY + gap, window.innerHeight - panelHeight - 18)),
+      }
+    }
 
-    const panelWidth = panelRef.current?.offsetWidth ?? 330
-    const panelHeight = panelRef.current?.offsetHeight ?? 250
-    const gap = 26
-    const nextX = Math.min(event.clientX + gap, window.innerWidth - panelWidth - 18)
-    const nextY = Math.min(event.clientY + gap, window.innerHeight - panelHeight - 18)
-    targetRef.current = { x: Math.max(18, nextX), y: Math.max(18, nextY) }
-
-    if (pointerFrame.current === null) {
+    if (!coarsePointer && pointerFrame.current === null) {
+      const clientX = event.clientX
+      const clientY = event.clientY
       pointerFrame.current = window.requestAnimationFrame(() => {
-        const x = event.clientX / window.innerWidth - 0.5
-        const y = event.clientY / window.innerHeight - 0.5
-        setShaderOffset({ x: x * 0.22, y: y * 0.22 })
+        setShaderOffset({
+          x: (clientX / window.innerWidth - 0.5) * 0.18,
+          y: (clientY / window.innerHeight - 0.5) * 0.18,
+        })
         pointerFrame.current = null
       })
     }
   }
 
+  const answerWord = answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : '—'
+
   return (
-    <main className={`instrument instrument--${mode}`} onPointerMove={handlePointerMove}>
+    <main className={`instrument instrument--${answer}`} onPointerMove={handlePointerMove}>
       <div className="shader" aria-hidden="true">
         <GrainGradient
           width="100%"
           height="100%"
           colors={shader.colors}
           colorBack={shader.back}
-          softness={mode === 'up' ? 0.62 : 0.38}
-          intensity={mode === 'up' ? 0.48 : 0.68}
+          softness={answer === 'no' ? 0.38 : 0.62}
+          intensity={answer === 'no' ? 0.68 : 0.48}
           noise={dark ? 0.22 : 0.16}
-          shape={mode === 'up' ? 'corners' : 'truchet'}
-          speed={reducedMotion ? 0 : mode === 'up' ? 0.16 : 0.04}
-          scale={mode === 'up' ? 0.9 : 1.62}
-          rotation={mode === 'up' ? -8 : 13}
+          shape={answer === 'no' ? 'truchet' : 'corners'}
+          speed={reducedMotion ? 0 : answer === 'no' ? 0.22 : 0.42}
+          scale={answer === 'no' ? 1.62 : 0.9}
+          rotation={answer === 'no' ? 13 : -8}
           offsetX={shaderOffset.x}
           offsetY={shaderOffset.y}
           minPixelRatio={1}
@@ -129,75 +260,47 @@ function App() {
       <div className="veil" aria-hidden="true" />
 
       <header className="masthead">
-        <span className="wordmark">caniworknow.com</span>
-        <span className="prototype-label">Design prototype · 01</span>
+        <span className="wordmark">CAN I WORK NOW</span>
       </header>
 
       <section className="answer" aria-live="polite" aria-atomic="true">
-        <p className="answer__context">Can I work now?</p>
-        <h1 className="answer__word">{mode === 'up' ? 'YES' : 'NO'}</h1>
+        <h1 className="answer__word">{answerWord}</h1>
         <p className="sr-only">
-          {mode === 'up'
-            ? 'Yes. GitHub, Cloudflare, Claude, and Codex are operational.'
-            : 'No. Claude and GitHub Actions have mocked service issues.'}
+          {answer === 'yes'
+            ? 'Yes. All monitored systems are operational.'
+            : answer === 'no'
+              ? `No. ${issues.map((issue) => issue.name).join(', ')} ${issues.length === 1 ? 'has' : 'have'} a current issue.`
+              : 'Checking the live status of monitored systems.'}
         </p>
       </section>
 
       <footer className="utility">
-        <p className="checked">
-          <span className="status-dot" aria-hidden="true" />
-          {mode === 'up' ? '4 systems checked · just now' : '2 issues reported · mock data'}
-        </p>
-        <div className="state-switch" role="group" aria-label="Prototype status state">
-          <span className="state-switch__label">Preview</span>
-          <button
-            type="button"
-            className={mode === 'up' ? 'is-active' : ''}
-            onClick={() => setMode('up')}
-            aria-pressed={mode === 'up'}
-            title="Show operational state (Y)"
-          >
-            Up <kbd>Y</kbd>
-          </button>
-          <button
-            type="button"
-            className={mode === 'down' ? 'is-active' : ''}
-            onClick={() => setMode('down')}
-            aria-pressed={mode === 'down'}
-            title="Show incident state (N)"
-          >
-            Down <kbd>N</kbd>
-          </button>
-        </div>
+        <Systems services={services} />
       </footer>
 
-      {mode === 'down' && (
+      {answer === 'no' && (
         <aside
           className="issue-panel"
           ref={panelRef}
           aria-label="Current service issues"
-          onPointerEnter={() => {
-            panelHoverRef.current = true
-          }}
-          onPointerLeave={() => {
-            panelHoverRef.current = false
-          }}
+          onPointerEnter={() => { panelHoverRef.current = true }}
+          onPointerLeave={() => { panelHoverRef.current = false }}
         >
           <div className="issue-panel__heading">
-            <span>What’s down</span>
-            <span>02</span>
+            <span>Current signal</span>
+            <span>{String(issues.length).padStart(2, '0')}</span>
           </div>
           <div className="issue-list">
-            {mockIssues.map((issue, index) => (
+            {issues.map((issue, index) => (
               <article className="issue" key={issue.id}>
-                <div className="issue__index">0{index + 1}</div>
+                <div className="issue__index">{String(index + 1).padStart(2, '0')}</div>
                 <div>
-                  <h2>{issue.service}</h2>
-                  <p>{issue.summary}</p>
+                  <h2>{issue.name}</h2>
+                  <p>{issue.detail}</p>
                   <div className="issue__sources">
-                    {issue.sources.map((source) => (
-                      <a href={source.url} target="_blank" rel="noreferrer" key={source.url}>
-                        {source.label}<span aria-hidden="true">↗</span>
+                    {issue.links.map((link) => (
+                      <a href={link.url} target="_blank" rel="noreferrer" key={link.url}>
+                        {link.label}<span aria-hidden="true">↗</span>
                       </a>
                     ))}
                   </div>
