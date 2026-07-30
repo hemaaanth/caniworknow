@@ -21,8 +21,8 @@ describe('social sharing metadata', () => {
     expect(metaContent('og:site_name')).toBe('Can I Work Now?')
     expect(metaContent('og:title')).toBe('Can I Work Now?')
     expect(metaContent('og:description')).toBe('One answer for the tools your work depends on.')
-    expect(metaContent('og:image')).toBe('https://caniworknow.com/og-v1.png')
-    expect(metaContent('og:image:secure_url')).toBe('https://caniworknow.com/og-v1.png')
+    expect(metaContent('og:image')).toBe('https://caniworknow.com/og-v2.png')
+    expect(metaContent('og:image:secure_url')).toBe('https://caniworknow.com/og-v2.png')
     expect(metaContent('og:image:type')).toBe('image/png')
     expect(metaContent('og:image:width')).toBe('1200')
     expect(metaContent('og:image:height')).toBe('630')
@@ -34,12 +34,12 @@ describe('social sharing metadata', () => {
     expect(metaContent('twitter:card')).toBe('summary_large_image')
     expect(metaContent('twitter:title')).toBe('Can I Work Now?')
     expect(metaContent('twitter:description')).toBe('One answer for the tools your work depends on.')
-    expect(metaContent('twitter:image')).toBe('https://caniworknow.com/og-v1.png')
+    expect(metaContent('twitter:image')).toBe('https://caniworknow.com/og-v2.png')
     expect(metaContent('twitter:image:alt')).toContain('Can I Work Now?')
   })
 
   it('uses a valid, non-empty 1200x630 PNG share image', () => {
-    const imagePath = rootFile('public/og-v1.png')
+    const imagePath = rootFile('public/og-v2.png')
     const png = readFileSync(imagePath)
 
     expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
