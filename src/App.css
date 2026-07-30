@@ -63,6 +63,7 @@
 
 .masthead {
   top: clamp(18px, 2.4vw, 36px);
+  text-align: center;
 }
 
 .wordmark {
@@ -124,6 +125,7 @@
   align-items: center;
   gap: 8px;
   width: max-content;
+  margin-inline: auto;
 }
 
 .system-icon {
