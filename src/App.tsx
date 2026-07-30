@@ -85,39 +85,8 @@ function useLiveStatus() {
 }
 
 function ServiceIcon({ id }: { id: ServiceId }) {
-  if (id === 'github') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="7" cy="6" r="2.2" />
-        <circle cx="17" cy="6" r="2.2" />
-        <circle cx="12" cy="18" r="2.2" />
-        <path d="M7 8.2v2.2c0 2 1.6 3.6 3.6 3.6H12m5-5.8v2.2c0 2-1.6 3.6-3.6 3.6H12v1.8" />
-      </svg>
-    )
-  }
-
-  if (id === 'cloudflare') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M5.5 17.5h12.8a3.2 3.2 0 0 0 .2-6.4 6.6 6.6 0 0 0-12.7 1.7 2.4 2.4 0 0 0-.3 4.7Z" />
-      </svg>
-    )
-  }
-
-  if (id === 'claude') {
-    return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M12 2.8v18.4M2.8 12h18.4M5.5 5.5l13 13M18.5 5.5l-13 13M8.6 3.5l6.8 17M20.5 8.6l-17 6.8" />
-      </svg>
-    )
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="m12 2.8 8 4.6v9.2l-8 4.6-8-4.6V7.4l8-4.6Z" />
-      <path d="m9 9 3-1.7L15 9v3.5l-3 1.8-3-1.8V9Zm3 5.3v3.4" />
-    </svg>
-  )
+  const brand = id === 'codex' ? 'openai' : id
+  return <span className={`brand-mark brand-mark--${brand}`} aria-hidden="true" />
 }
 
 function Systems({ services }: { services: ServiceStatus[] }) {

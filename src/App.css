@@ -151,15 +151,38 @@
   transform: translateY(-1px);
 }
 
-.system-icon svg {
-  width: 17px;
-  height: 17px;
-  overflow: visible;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.45;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.brand-mark {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.brand-mark--github {
+  mask-image: url('/brands/github.svg');
+  -webkit-mask-image: url('/brands/github.svg');
+}
+
+.brand-mark--cloudflare {
+  width: 20px;
+  mask-image: url('/brands/cloudflare.svg');
+  -webkit-mask-image: url('/brands/cloudflare.svg');
+}
+
+.brand-mark--claude {
+  mask-image: url('/brands/claude.svg');
+  -webkit-mask-image: url('/brands/claude.svg');
+}
+
+.brand-mark--openai {
+  mask-image: url('/brands/openai.svg');
+  -webkit-mask-image: url('/brands/openai.svg');
 }
 
 .system-icon[data-health='unknown'] {
