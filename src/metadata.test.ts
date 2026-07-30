@@ -15,6 +15,7 @@ function metaContent(key: string) {
 
 describe('social sharing metadata', () => {
   it('ships complete Open Graph metadata in the static HTML', () => {
+    expect(metaContent('og:locale')).toBe('en_US')
     expect(metaContent('og:type')).toBe('website')
     expect(metaContent('og:url')).toBe('https://caniworknow.com/')
     expect(metaContent('og:site_name')).toBe('Can I Work Now?')
@@ -45,6 +46,7 @@ describe('social sharing metadata', () => {
     expect(png.readUInt32BE(16)).toBe(1200)
     expect(png.readUInt32BE(20)).toBe(630)
     expect(statSync(imagePath).size).toBeGreaterThan(50_000)
+    expect(statSync(imagePath).size).toBeLessThan(500_000)
   })
 })
 
