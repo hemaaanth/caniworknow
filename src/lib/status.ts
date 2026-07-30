@@ -193,6 +193,10 @@ export function aggregateAnswer(services: ServiceStatus[]): Answer {
   return 'yes'
 }
 
+export function displayAnswer(answer: Answer): string {
+  return answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : ''
+}
+
 export function createFaviconSvg(answer: Answer): string {
   const letter = answer === 'yes' ? 'Y' : answer === 'no' ? 'N' : '?'
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#10100f"/><text x="32" y="44" text-anchor="middle" font-family="Arial,sans-serif" font-size="40" font-weight="700" fill="#f4f1e8">${letter}</text></svg>`

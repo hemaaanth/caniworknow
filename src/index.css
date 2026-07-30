@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Instrument Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400 700;
+  src: url('/fonts/instrument-sans-latin-wght-normal.woff2') format('woff2-variations');
+}
+
 :root {
   font-family: 'Instrument Sans Variable', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   color: #11100e;
@@ -11,6 +19,12 @@
   --panel: rgba(243, 238, 227, 0.96);
   --panel-ink: #15130f;
   --focus: #0b58ff;
+  --surface-fallback:
+    radial-gradient(ellipse at 12% 18%, #f4efe2 0%, #f4efe2 18%, transparent 48%),
+    radial-gradient(ellipse at 72% 8%, #83c3aa 0%, transparent 42%),
+    radial-gradient(ellipse at 92% 38%, #f0bea0 0%, transparent 43%),
+    radial-gradient(ellipse at 34% 88%, #83c3aa 0%, transparent 48%),
+    #f4efe2;
   color-scheme: light dark;
 }
 
@@ -24,6 +38,12 @@
     --panel: rgba(19, 18, 15, 0.96);
     --panel-ink: #f5f0e5;
     --focus: #8ab4ff;
+    --surface-fallback:
+      radial-gradient(ellipse at 12% 18%, #071915 0%, transparent 48%),
+      radial-gradient(ellipse at 72% 8%, #17453a 0%, transparent 42%),
+      radial-gradient(ellipse at 92% 38%, #7a654c 0%, transparent 43%),
+      radial-gradient(ellipse at 34% 88%, #395c48 0%, transparent 48%),
+      #050806;
   }
 }
 
@@ -42,6 +62,7 @@ body,
 body {
   min-height: 100svh;
   overflow: hidden;
+  background: var(--surface-fallback);
 }
 
 button,

@@ -3,6 +3,7 @@ import {
   aggregateAnswer,
   aggregateService,
   createFaviconSvg,
+  displayAnswer,
   parseCommunityStatus,
   parseOfficialStatus,
   type NormalizedSource,
@@ -75,6 +76,14 @@ describe('aggregation', () => {
       source('probe', 'operational'),
     ])
     expect(github.health).toBe('operational')
+  })
+})
+
+describe('displayAnswer', () => {
+  it('keeps the central answer empty until fresh status is available', () => {
+    expect(displayAnswer('unknown')).toBe('')
+    expect(displayAnswer('yes')).toBe('YES')
+    expect(displayAnswer('no')).toBe('NO')
   })
 })
 

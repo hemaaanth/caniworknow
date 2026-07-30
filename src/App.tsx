@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { GrainGradient } from '@paper-design/shaders-react'
 import {
   createFaviconSvg,
+  displayAnswer,
   type Answer,
   type LiveStatusResponse,
   type ServiceId,
@@ -203,7 +204,7 @@ function App() {
     }
   }
 
-  const answerWord = answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : '—'
+  const answerWord = displayAnswer(answer)
 
   return (
     <main className={`instrument instrument--${answer}`} onPointerMove={handlePointerMove}>
