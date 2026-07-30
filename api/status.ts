@@ -1,4 +1,4 @@
-import { collectLiveStatus } from './lib/collect.js'
+import { collectLiveStatus } from '../server/collect.js'
 
 interface RequestLike {
   method?: string

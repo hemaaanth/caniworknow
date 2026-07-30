@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { collectLiveStatus } from '../api/lib/collect'
+import { collectLiveStatus } from '../server/collect'
 
 const officialPayloads: Record<string, object> = {
   github: { components: [{ name: 'Actions', status: 'operational', showcase: true }] },

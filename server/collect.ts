@@ -7,7 +7,7 @@ import {
   type NormalizedSource,
   type RawStatusPage,
   type ServiceId,
-} from '../../src/lib/status.js'
+} from '../src/lib/status.js'
 
 export type SourceUrls = Record<ServiceId, readonly [official: string, community: string, probe: string]>
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>
