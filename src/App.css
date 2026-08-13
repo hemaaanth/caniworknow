@@ -223,10 +223,10 @@
 .issue-panel {
   position: fixed;
   z-index: 8;
-  top: 0;
-  left: 0;
+  right: clamp(18px, 2.4vw, 40px);
+  bottom: max(88px, calc(clamp(17px, 2.2vw, 32px) + 56px));
   width: min(370px, calc(100vw - 36px));
-  max-height: min(70svh, 560px);
+  max-height: min(calc(100svh - 160px), 560px);
   overflow: auto;
   color: var(--panel-ink);
   background: var(--panel);
@@ -234,7 +234,6 @@
     0 0 0 1px color-mix(in srgb, var(--panel-ink) 18%, transparent),
     0 18px 50px rgba(17, 9, 4, 0.18);
   backdrop-filter: blur(18px);
-  will-change: transform;
 }
 
 .issue-panel__heading {

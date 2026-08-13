@@ -136,10 +136,6 @@ function App() {
   const issues = services.filter((service) => service.health === 'outage' || service.health === 'degraded')
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
   const { dark, reducedMotion, coarsePointer } = useMediaState()
-  const panelRef = useRef<HTMLElement>(null)
-  const targetRef = useRef({ x: window.innerWidth * 0.64, y: window.innerHeight * 0.52 })
-  const currentRef = useRef({ ...targetRef.current })
-  const panelHoverRef = useRef(false)
   const pointerFrame = useRef<number | null>(null)
 
   const shader = useMemo(() => {
@@ -162,35 +158,7 @@ function App() {
     document.title = `${answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : 'CHECKING'} — Can I Work Now`
   }, [answer])
 
-  useEffect(() => {
-    if (answer !== 'no' || coarsePointer) return
-
-    let frame = 0
-    const animate = () => {
-      const panel = panelRef.current
-      if (panel) {
-        const ease = reducedMotion ? 1 : 0.14
-        currentRef.current.x += (targetRef.current.x - currentRef.current.x) * ease
-        currentRef.current.y += (targetRef.current.y - currentRef.current.y) * ease
-        panel.style.transform = `translate3d(${currentRef.current.x}px, ${currentRef.current.y}px, 0)`
-      }
-      frame = window.requestAnimationFrame(animate)
-    }
-    frame = window.requestAnimationFrame(animate)
-    return () => window.cancelAnimationFrame(frame)
-  }, [answer, coarsePointer, reducedMotion])
-
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    if (!coarsePointer && answer === 'no' && !panelHoverRef.current) {
-      const panelWidth = panelRef.current?.offsetWidth ?? 350
-      const panelHeight = panelRef.current?.offsetHeight ?? 280
-      const gap = 26
-      targetRef.current = {
-        x: Math.max(18, Math.min(event.clientX + gap, window.innerWidth - panelWidth - 18)),
-        y: Math.max(18, Math.min(event.clientY + gap, window.innerHeight - panelHeight - 18)),
-      }
-    }
-
     if (!coarsePointer && pointerFrame.current === null) {
       const clientX = event.clientX
       const clientY = event.clientY
@@ -251,14 +219,10 @@ function App() {
       {answer === 'no' && (
         <aside
           className="issue-panel"
-          ref={panelRef}
           aria-label="Current service issues"
-          onPointerEnter={() => { panelHoverRef.current = true }}
-          onPointerLeave={() => { panelHoverRef.current = false }}
         >
           <div className="issue-panel__heading">
             <span>Current signal</span>
-            <span>{String(issues.length).padStart(2, '0')}</span>
           </div>
           <div className="issue-list">
             {issues.map((issue, index) => (
