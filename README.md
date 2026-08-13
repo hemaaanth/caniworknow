@@ -22,7 +22,7 @@ The `/api/status` Vercel function uses request timeouts and CDN caching (`s-maxa
 - System-aware light and dark appearances
 - Dynamic `Y` / `N` favicon
 - Minimal monitored-system icons with accessible status labels
-- Pointer-following live incident card on desktop and reachable incident sheet on touch devices
+- Anchored, collapsible live incident card on desktop and reachable incident sheet on touch devices
 - No manual or query-string status simulation
 
 ## Development
