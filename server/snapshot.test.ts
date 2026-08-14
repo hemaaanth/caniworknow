@@ -10,9 +10,10 @@ import {
   snapshotUrl,
 } from './snapshot.js'
 import { renderSnapshotPng } from './snapshot-image.js'
+import { renderSnapshotHtml as renderSnapshotHtmlV3 } from './snapshot-v3.js'
 
 const SECRET = 'test-secret-with-enough-entropy'
-const snapshotImageSource = readFileSync(fileURLToPath(new URL('./snapshot-image.ts', import.meta.url)), 'utf8')
+const snapshotImageV3Source = readFileSync(fileURLToPath(new URL('./snapshot-image-v3.ts', import.meta.url)), 'utf8')
 const status: LiveStatusResponse = {
   answer: 'no',
   checkedAt: '2026-08-14T00:30:00.000Z',
@@ -55,6 +56,20 @@ describe('status snapshots', () => {
     expect(token.length).toBeLessThan(240)
     expect(parseStatusSnapshot(`${token.slice(0, -1)}x`, SECRET)).toBeNull()
     expect(parseStatusSnapshot(token, 'a-different-secret')).toBeNull()
+  })
+
+  it('renders metadata for an eight-character stored snapshot id', () => {
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    expect(snapshot).not.toBeNull()
+    const html = renderSnapshotHtmlV3(snapshot!, 'A1b2C3d4', 'https://caniworknow.com', {
+      snapshotPath: '/s/A1b2C3d4',
+      imagePath: '/api/og-v3?id=A1b2C3d4',
+    })
+
+    expect(html).toContain('rel="canonical" href="https://caniworknow.com/s/A1b2C3d4"')
+    expect(html).toContain('property="og:image" content="https://caniworknow.com/api/og-v3?id=A1b2C3d4"')
+    expect(html).not.toContain('/s/v2/A1b2C3d4')
   })
 
   it('renders immutable social metadata and a live-status comparison page', () => {
@@ -143,11 +158,12 @@ describe('status snapshots', () => {
     expect(html).toContain('--label-bg:rgba(5,8,6,.78);--label-ink:#f3f0e8')
   })
 
-  it('renders OG text with the bundled Instrument Sans font instead of environment fonts', () => {
-    expect(snapshotImageSource).toContain("new URL('../public/fonts/instrument-sans-latin-wght-normal.woff2', import.meta.url)")
-    expect(snapshotImageSource).toContain('fontfile: SNAPSHOT_FONT_PATH')
-    expect(snapshotImageSource).not.toContain('Arial, Helvetica, sans-serif')
-    expect(snapshotImageSource).not.toContain('snapshotIssueLabel')
+  it('renders OG text with a Vercel-compatible bundled TrueType font', () => {
+    expect(snapshotImageV3Source).toContain("new URL('../public/fonts/instrument-sans-variable.ttf', import.meta.url)")
+    expect(snapshotImageV3Source).toContain('fontfile: SNAPSHOT_FONT_PATH')
+    expect(snapshotImageV3Source).not.toContain('instrument-sans-latin-wght-normal.woff2')
+    expect(snapshotImageV3Source).not.toContain('Arial, Helvetica, sans-serif')
+    expect(snapshotImageV3Source).not.toContain('<text')
   })
 
   it('keeps checked time and affected services visually separated', async () => {

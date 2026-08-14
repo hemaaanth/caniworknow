@@ -6,7 +6,7 @@
     },
     {
       "source": "/s/:token",
-      "destination": "/api/snapshot-v1?token=:token"
+      "destination": "/api/snapshot-route?token=:token"
     }
   ]
 }
