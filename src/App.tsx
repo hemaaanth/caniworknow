@@ -136,6 +136,7 @@ function App() {
   const issues = services.filter((service) => service.health === 'outage' || service.health === 'degraded')
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
   const [panelOpen, setPanelOpen] = useState(false)
+  const [shareState, setShareState] = useState<'idle' | 'creating' | 'copied' | 'error'>('idle')
   const { dark, reducedMotion, coarsePointer } = useMediaState()
   const pointerFrame = useRef<number | null>(null)
 
@@ -188,6 +189,35 @@ function App() {
 
   const answerWord = displayAnswer(answer)
 
+  const handleShare = async () => {
+    if (shareState === 'creating') return
+    setShareState('creating')
+    try {
+      const response = await fetch('/api/share', { headers: { accept: 'application/json' } })
+      if (!response.ok) throw new Error(`Share request failed: ${response.status}`)
+      const snapshot = await response.json() as { url: string; answer: Answer }
+      const title = `${snapshot.answer.toUpperCase()} — Can I Work Now?`
+      if (navigator.share) {
+        try {
+          await navigator.share({ title, text: 'Status snapshot from Can I Work Now?', url: snapshot.url })
+          setShareState('idle')
+          return
+        } catch (error) {
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            setShareState('idle')
+            return
+          }
+        }
+      }
+      await navigator.clipboard.writeText(snapshot.url)
+      setShareState('copied')
+      window.setTimeout(() => setShareState('idle'), 2400)
+    } catch {
+      setShareState('error')
+      window.setTimeout(() => setShareState('idle'), 3200)
+    }
+  }
+
   return (
     <main className={`instrument instrument--${answer}`} onPointerMove={handlePointerMove}>
       <div className="shader" aria-hidden="true">
@@ -214,6 +244,20 @@ function App() {
       <header className="masthead">
         <span className="wordmark">CAN I WORK NOW</span>
       </header>
+
+      <button
+        type="button"
+        className="share-status"
+        aria-label="Share current status snapshot"
+        aria-busy={shareState === 'creating'}
+        onClick={() => { void handleShare() }}
+      >
+        <span aria-hidden="true">↗</span>
+        <span>{shareState === 'creating' ? 'CREATING' : 'SHARE'}</span>
+      </button>
+      <span className="share-feedback" role="status" aria-live="polite">
+        {shareState === 'copied' ? 'Snapshot link copied' : shareState === 'error' ? 'Could not create snapshot' : ''}
+      </span>
 
       <section className="answer" aria-live="polite" aria-atomic="true">
         <h1 className="answer__word">{answerWord}</h1>

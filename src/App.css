@@ -68,6 +68,50 @@
   letter-spacing: 0.075em;
 }
 
+.share-status {
+  position: absolute;
+  z-index: 5;
+  top: clamp(14px, 2vw, 30px);
+  right: clamp(18px, 2.4vw, 40px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 0 6px 10px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: 650 10px/1 inherit;
+  letter-spacing: 0.09em;
+  cursor: pointer;
+  opacity: 0.58;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.share-status:hover,
+.share-status:focus-visible,
+.share-status[aria-busy='true'] {
+  opacity: 1;
+}
+
+.share-status:hover {
+  transform: translateY(-1px);
+}
+
+.share-status[aria-busy='true'] {
+  cursor: progress;
+}
+
+.share-feedback {
+  position: absolute;
+  z-index: 5;
+  top: clamp(50px, 5.5vw, 70px);
+  right: clamp(18px, 2.4vw, 40px);
+  font-size: 10px;
+  font-weight: 620;
+  letter-spacing: 0.03em;
+}
+
 .answer {
   position: absolute;
   inset: 0;
