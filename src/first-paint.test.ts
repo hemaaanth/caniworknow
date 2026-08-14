@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 const appCss = readFileSync(fileURLToPath(new URL('./App.css', import.meta.url)), 'utf8')
+const appSource = readFileSync(fileURLToPath(new URL('./App.tsx', import.meta.url)), 'utf8')
 const indexHtml = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8')
 
 describe('first paint stability', () => {
@@ -23,6 +24,13 @@ describe('first paint stability', () => {
     expect(appCss).toContain('height: 100svh')
     expect(appCss).not.toMatch(/body\s*\{\s*overflow:\s*auto/)
     expect(appCss).not.toContain('min-height: max(100svh, 740px)')
+  })
+
+  it('offers a native share action backed by immutable snapshots', () => {
+    expect(appSource).toContain("fetch('/api/share'")
+    expect(appSource).toContain('navigator.share')
+    expect(appSource).toContain('navigator.clipboard.writeText')
+    expect(appSource).toContain('aria-label="Share current status snapshot"')
   })
 
   it('preloads the exact primary font used by the app', () => {

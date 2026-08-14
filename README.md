@@ -16,6 +16,12 @@ A reported official degradation or a corroborating community outage produces **N
 
 The `/api/status` Vercel function uses request timeouts and CDN caching (`s-maxage=60`, stale-while-revalidate). The client refreshes every minute and may use a cached result for up to 15 minutes if a refresh fails.
 
+## Status snapshots
+
+The homepage keeps a timeless social preview. Its share action asks `/api/share` for a signed, immutable snapshot URL containing the confirmed verdict, affected services, and check time. `/s/:token` renders snapshot-specific Open Graph/Twitter metadata and compares the captured verdict with the live API for human visitors. `/api/og` generates a timestamped 1200×630 PNG that can be cached permanently because every snapshot URL is unique.
+
+Set a stable `SNAPSHOT_SECRET` of at least 32 characters in every Vercel environment. Do not rotate it casually: existing snapshot URLs are authenticated with this value and would stop resolving after rotation. `PUBLIC_ORIGIN` is optional in production and useful for local URL generation.
+
 ## Interface
 
 - Passive Paper Design Grain Gradient animation with restrained pointer influence
@@ -32,7 +38,7 @@ npm install
 npm run dev
 ```
 
-The plain Vite server does not emulate Vercel functions. Use Vercel's local runtime when testing `/api/status` end-to-end:
+The plain Vite server does not emulate Vercel functions. Use Vercel's local runtime with values from `.env.example` when testing `/api/status`, `/api/share`, and `/s/:token` end-to-end:
 
 ```bash
 vercel dev
@@ -55,4 +61,4 @@ npm run build
 - Instrument Sans Variable
 - Vitest
 
-Production deploys automatically from the private GitHub repository to Vercel.
+Production deploys automatically from the public GitHub repository to Vercel.
