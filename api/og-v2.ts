@@ -1,4 +1,5 @@
-import { parseStatusSnapshot, renderSnapshotHtml } from '../server/snapshot.js'
+import { parseStatusSnapshot } from '../server/snapshot.js'
+import { renderSnapshotPng } from '../server/snapshot-image.js'
 
 interface RequestLike {
   method?: string
@@ -7,16 +8,12 @@ interface RequestLike {
 
 interface ResponseLike {
   statusCode: number
-  setHeader(name: string, value: string): void
-  end(body?: string): void
+  setHeader(name: string, value: string | number): void
+  end(body?: string | Buffer): void
 }
 
 function first(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? ''
-}
-
-function publicOrigin(): string {
-  return (process.env.PUBLIC_ORIGIN ?? 'https://caniworknow.com').replace(/\/$/, '')
 }
 
 export default async function handler(request: RequestLike, response: ResponseLike): Promise<void> {
@@ -27,9 +24,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
     return
   }
 
-  const secret = process.env.SNAPSHOT_SECRET ?? ''
-  const token = first(request.query?.token)
-  const snapshot = parseStatusSnapshot(token, secret)
+  const snapshot = parseStatusSnapshot(first(request.query?.token), process.env.SNAPSHOT_SECRET ?? '')
   if (!snapshot) {
     response.statusCode = 404
     response.setHeader('Content-Type', 'text/plain; charset=utf-8')
@@ -38,12 +33,11 @@ export default async function handler(request: RequestLike, response: ResponseLi
     return
   }
 
+  const png = await renderSnapshotPng(snapshot)
   response.statusCode = 200
-  response.setHeader('Content-Type', 'text/html; charset=utf-8')
+  response.setHeader('Content-Type', 'image/png')
+  response.setHeader('Content-Length', png.length)
   response.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
   response.setHeader('X-Content-Type-Options', 'nosniff')
-  response.setHeader('X-Frame-Options', 'DENY')
-  response.setHeader('Referrer-Policy', 'no-referrer')
-  response.setHeader('Content-Security-Policy', "default-src 'none'; connect-src 'self'; font-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
-  response.end(renderSnapshotHtml(snapshot, token, publicOrigin()))
+  response.end(png)
 }

@@ -43,6 +43,17 @@ describe('first paint stability', () => {
     expect(appCss).toContain('.share-status__label')
   })
 
+  it('matches the mobile share glyph to the wordmark cap height', () => {
+    const compactMedia = appCss.match(/@media \(pointer: coarse\), \(max-width: 700px\) \{([\s\S]*?)\n\}/)?.[1] ?? ''
+    const shareRule = compactMedia.match(/\.share-status\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+    const iconRule = compactMedia.match(/\.share-status__icon\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+
+    expect(appCss).toMatch(/\.wordmark\s*\{[\s\S]*?font-size:\s*11px/)
+    expect(shareRule).toContain('top: max(14px, calc(clamp(18px, 2.4vw, 36px) - 4px))')
+    expect(iconRule).toContain('width: 11px')
+    expect(iconRule).toContain('height: 11px')
+  })
+
   it('preloads the exact primary font used by the app', () => {
     expect(indexHtml).toContain('rel="preload"')
     expect(indexHtml).toContain('/fonts/instrument-sans-latin-wght-normal.woff2')
