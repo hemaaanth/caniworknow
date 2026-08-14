@@ -1,8 +1,12 @@
 {
   "rewrites": [
     {
-      "source": "/s/:token",
+      "source": "/s/v2/:token",
       "destination": "/api/snapshot?token=:token"
+    },
+    {
+      "source": "/s/:token",
+      "destination": "/api/snapshot-v1?token=:token"
     }
   ]
 }

@@ -37,6 +37,10 @@ const status: LiveStatusResponse = {
 }
 
 describe('status snapshots', () => {
+  it('versions the immutable snapshot presentation path', () => {
+    expect(snapshotUrl('signed-token')).toBe('/s/v2/signed-token')
+  })
+
   it('creates a compact signed immutable snapshot', () => {
     const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
     const snapshot = parseStatusSnapshot(token, SECRET)

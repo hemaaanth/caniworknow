@@ -77,7 +77,7 @@ export function parseStatusSnapshot(token: string, secret: string): StatusSnapsh
 }
 
 export function snapshotUrl(token: string): string {
-  return `/s/${encodeURIComponent(token)}`
+  return `/s/v2/${encodeURIComponent(token)}`
 }
 
 export function formatSnapshotChecked(iso: string): string {
