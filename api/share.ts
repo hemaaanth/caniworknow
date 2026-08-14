@@ -1,4 +1,5 @@
-import { createStatusSnapshot, snapshotUrl } from '../server/snapshot.js'
+import { storeSnapshotToken } from '../server/snapshot-store.js'
+import { createStatusSnapshot } from '../server/snapshot-v3.js'
 import type { LiveStatusResponse } from '../src/lib/status.js'
 
 interface RequestLike {
@@ -56,7 +57,8 @@ export default async function handler(request: RequestLike, response: ResponseLi
     const origin = publicOrigin()
     const status = await readCurrentStatus(origin)
     const token = createStatusSnapshot(status, secret)
-    const url = `${origin}${snapshotUrl(token)}`
+    const id = await storeSnapshotToken(token)
+    const url = `${origin}/s/${id}`
 
     response.statusCode = 200
     response.setHeader('Content-Type', 'application/json; charset=utf-8')

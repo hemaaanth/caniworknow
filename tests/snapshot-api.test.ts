@@ -1,10 +1,20 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const blobMocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  put: vi.fn(),
+}))
+
+vi.mock('@vercel/blob', () => blobMocks)
+
 import ogV2Handler from '../api/og-v2.js'
+import ogV3Handler from '../api/og-v3.js'
 import shareHandler from '../api/share.js'
 import snapshotHandler from '../api/snapshot.js'
-import { createStatusSnapshot } from '../server/snapshot.js'
+import snapshotRouteHandler from '../api/snapshot-route.js'
+import { createStatusSnapshot, parseStatusSnapshot } from '../server/snapshot.js'
 import type { LiveStatusResponse } from '../src/lib/status.js'
 
 const SECRET = 'a-stable-test-secret-with-32-characters'
@@ -21,7 +31,10 @@ const status: LiveStatusResponse = {
 
 const apiOgSource = readFileSync(fileURLToPath(new URL('../api/og.ts', import.meta.url)), 'utf8')
 const apiOgV2Source = readFileSync(fileURLToPath(new URL('../api/og-v2.ts', import.meta.url)), 'utf8')
+const apiOgV3Source = readFileSync(fileURLToPath(new URL('../api/og-v3.ts', import.meta.url)), 'utf8')
+const apiShareSource = readFileSync(fileURLToPath(new URL('../api/share.ts', import.meta.url)), 'utf8')
 const apiSnapshotV1Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v1.ts', import.meta.url)), 'utf8')
+const apiSnapshotV3Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v3.ts', import.meta.url)), 'utf8')
 const vercelConfig = readFileSync(fileURLToPath(new URL('../vercel.json', import.meta.url)), 'utf8')
 
 class MockResponse {
@@ -39,6 +52,7 @@ class MockResponse {
 }
 
 afterEach(() => {
+  vi.clearAllMocks()
   vi.unstubAllGlobals()
   delete process.env.SNAPSHOT_SECRET
   delete process.env.PUBLIC_ORIGIN
@@ -49,11 +63,16 @@ describe('snapshot API handlers', () => {
     expect(apiOgSource).toContain("../server/snapshot-image-v1.js")
     expect(apiOgV2Source).toContain("../server/snapshot-image.js")
     expect(apiOgV2Source).not.toContain("export { default } from './og.js'")
+    expect(apiOgV3Source).toContain("../server/snapshot-image-v3.js")
+    expect(apiOgV3Source).toContain("../server/snapshot-v3.js")
+    expect(apiOgV3Source).not.toContain("../server/snapshot-image.js")
+    expect(apiShareSource).toContain("../server/snapshot-v3.js")
+    expect(apiSnapshotV3Source).toContain("../server/snapshot-v3.js")
     expect(apiSnapshotV1Source).toContain("../server/snapshot-v1.js")
 
     const rewrites = JSON.parse(vercelConfig).rewrites
     expect(rewrites).toContainEqual({ source: '/s/v2/:token', destination: '/api/snapshot?token=:token' })
-    expect(rewrites).toContainEqual({ source: '/s/:token', destination: '/api/snapshot-v1?token=:token' })
+    expect(rewrites).toContainEqual({ source: '/s/:token', destination: '/api/snapshot-route?token=:token' })
   })
 
   it('creates a signed URL from the CDN-backed current status', async () => {
@@ -64,6 +83,7 @@ describe('snapshot API handlers', () => {
       headers: { 'content-type': 'application/json' },
     }))
     vi.stubGlobal('fetch', fetchMock)
+    blobMocks.put.mockResolvedValue({ url: 'private-blob-url' })
     const response = new MockResponse()
 
     await shareHandler({ method: 'GET' }, response)
@@ -74,7 +94,77 @@ describe('snapshot API handlers', () => {
     expect(response.headers.get('cdn-cache-control')).toContain('s-maxage=10')
     const body = JSON.parse(response.body) as { url: string; answer: string }
     expect(body.answer).toBe('yes')
-    expect(body.url).toMatch(/^https:\/\/caniworknow\.com\/s\/v2\/[A-Za-z0-9_.-]+$/)
+    expect(body.url).toMatch(/^https:\/\/caniworknow\.com\/s\/[A-Za-z0-9]{8}$/)
+    const [pathname, storedToken, options] = blobMocks.put.mock.calls[0]
+    expect(pathname).toMatch(/^snapshots\/[A-Za-z0-9]{8}$/)
+    expect(parseStatusSnapshot(storedToken as string, SECRET)?.answer).toBe('yes')
+    expect(options).toMatchObject({ access: 'private', addRandomSuffix: false, allowOverwrite: false })
+  })
+
+  it('resolves an eight-character id to immutable snapshot metadata', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    process.env.PUBLIC_ORIGIN = 'https://caniworknow.com'
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T01:41:00.000Z')
+    blobMocks.get.mockResolvedValue({ statusCode: 200, stream: new Blob([token]).stream() })
+    const response = new MockResponse()
+
+    await snapshotRouteHandler({ method: 'GET', query: { token: 'A1b2C3d4' } }, response)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.headers.get('cache-control')).toContain('immutable')
+    expect(response.body).toContain('rel="canonical" href="https://caniworknow.com/s/A1b2C3d4"')
+    expect(response.body).toContain('property="og:image" content="https://caniworknow.com/api/og-v3?id=A1b2C3d4"')
+    expect(blobMocks.get).toHaveBeenCalledWith('snapshots/A1b2C3d4', { access: 'private' })
+  })
+
+  it('rejects a tampered token loaded from private snapshot storage', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T01:41:00.000Z')
+    blobMocks.get.mockResolvedValue({ statusCode: 200, stream: new Blob([`${token}x`]).stream() })
+    const response = new MockResponse()
+
+    await snapshotRouteHandler({ method: 'GET', query: { token: 'A1b2C3d4' } }, response)
+
+    expect(response.statusCode).toBe(404)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+  })
+
+  it('keeps existing long snapshot URLs on the frozen legacy renderer', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    process.env.PUBLIC_ORIGIN = 'https://caniworknow.com'
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T01:41:00.000Z')
+    const response = new MockResponse()
+
+    await snapshotRouteHandler({ method: 'GET', query: { token } }, response)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.body).toContain(`rel="canonical" href="https://caniworknow.com/s/${token}"`)
+    expect(response.body).toContain('/api/og?token=')
+    expect(blobMocks.get).not.toHaveBeenCalled()
+  })
+
+  it('serves a stored snapshot id as a rendered OG image', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T01:41:00.000Z')
+    blobMocks.get.mockResolvedValue({ statusCode: 200, stream: new Blob([token]).stream() })
+    const headers = new Map<string, string | number>()
+    let statusCode = 200
+    let body: string | Buffer | undefined
+    const response = {
+      get statusCode() { return statusCode },
+      set statusCode(value: number) { statusCode = value },
+      setHeader(name: string, value: string | number) { headers.set(name.toLowerCase(), value) },
+      end(value?: string | Buffer) { body = value },
+    }
+
+    await ogV3Handler({ method: 'GET', query: { id: 'A1b2C3d4' } }, response)
+
+    expect(statusCode).toBe(200)
+    expect(headers.get('content-type')).toBe('image/png')
+    expect(headers.get('cache-control')).toContain('immutable')
+    expect(Buffer.isBuffer(body)).toBe(true)
+    expect((body as Buffer).readUInt32BE(16)).toBe(1200)
+    expect((body as Buffer).readUInt32BE(20)).toBe(630)
   })
 
   it('fails closed when the signing secret is missing', async () => {
