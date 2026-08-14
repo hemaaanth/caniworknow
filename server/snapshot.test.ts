@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import sharp from 'sharp'
 import { describe, expect, it } from 'vitest'
 import type { LiveStatusResponse } from '../src/lib/status.js'
 import {
@@ -9,6 +12,7 @@ import {
 import { renderSnapshotPng } from './snapshot-image.js'
 
 const SECRET = 'test-secret-with-enough-entropy'
+const snapshotImageSource = readFileSync(fileURLToPath(new URL('./snapshot-image.ts', import.meta.url)), 'utf8')
 const status: LiveStatusResponse = {
   answer: 'no',
   checkedAt: '2026-08-14T00:30:00.000Z',
@@ -60,7 +64,7 @@ describe('status snapshots', () => {
     expect(html).toContain('Claude had a current issue')
     expect(html).toContain('Checked Aug 14, 2026 · 00:30 UTC')
     expect(html).toContain(`https://caniworknow.com${snapshotUrl(token)}`)
-    expect(html).toContain('/api/og?token=')
+    expect(html).toContain('/api/og-v2?token=')
     expect(html).toContain('CHECKING LIVE')
     expect(html).toContain('View live status')
     expect(html).toContain("fetch('/api/status'")
@@ -133,6 +137,30 @@ describe('status snapshots', () => {
     expect(html).toContain('--label-bg:rgba(244,239,226,.84);--label-ink:#11100e')
     expect(html).toContain('.snapshot-label,.checked,.comparison,.action,.affected{color:var(--label-ink);background:var(--label-bg)')
     expect(html).toContain('--label-bg:rgba(5,8,6,.78);--label-ink:#f3f0e8')
+  })
+
+  it('renders OG text with the bundled Instrument Sans font instead of environment fonts', () => {
+    expect(snapshotImageSource).toContain("new URL('../public/fonts/instrument-sans-latin-wght-normal.woff2', import.meta.url)")
+    expect(snapshotImageSource).toContain('fontfile: SNAPSHOT_FONT_PATH')
+    expect(snapshotImageSource).not.toContain('Arial, Helvetica, sans-serif')
+    expect(snapshotImageSource).not.toContain('snapshotIssueLabel')
+  })
+
+  it('keeps checked time and affected services visually separated', async () => {
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    const png = await renderSnapshotPng(snapshot!)
+    const { data, info } = await sharp(png)
+      .extract({ left: 570, top: 535, width: 60, height: 75 })
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    let inkPixels = 0
+
+    for (let index = 0; index < data.length; index += info.channels) {
+      if (data[index] > 220 && data[index + 1] > 220 && data[index + 2] > 220) inkPixels += 1
+    }
+
+    expect(inkPixels).toBeLessThan(20)
   })
 
   it('renders a timestamped 1200×630 PNG social card', async () => {

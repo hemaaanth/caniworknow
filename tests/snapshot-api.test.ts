@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import ogV2Handler from '../api/og-v2.js'
 import shareHandler from '../api/share.js'
 import snapshotHandler from '../api/snapshot.js'
 import { createStatusSnapshot } from '../server/snapshot.js'
@@ -84,6 +85,29 @@ describe('snapshot API handlers', () => {
     expect(response.headers.get('x-frame-options')).toBe('DENY')
     expect(response.body).toContain(`rel="canonical" href="https://caniworknow.com/s/${token}"`)
     expect(response.body).not.toContain('evil.example')
+  })
+
+  it('serves the versioned OG card as an immutable PNG', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T01:41:00.000Z')
+    const headers = new Map<string, string | number>()
+    let statusCode = 200
+    let body: string | Buffer | undefined
+    const response = {
+      get statusCode() { return statusCode },
+      set statusCode(value: number) { statusCode = value },
+      setHeader(name: string, value: string | number) { headers.set(name.toLowerCase(), value) },
+      end(value?: string | Buffer) { body = value },
+    }
+
+    await ogV2Handler({ method: 'GET', query: { token } }, response)
+
+    expect(statusCode).toBe(200)
+    expect(headers.get('content-type')).toBe('image/png')
+    expect(headers.get('cache-control')).toContain('immutable')
+    expect(Buffer.isBuffer(body)).toBe(true)
+    expect((body as Buffer).readUInt32BE(16)).toBe(1200)
+    expect((body as Buffer).readUInt32BE(20)).toBe(630)
   })
 
   it('rejects malformed and oversized snapshot identifiers', async () => {

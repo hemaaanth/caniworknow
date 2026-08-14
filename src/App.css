@@ -455,7 +455,7 @@
 
 @media (pointer: coarse), (max-width: 700px) {
   .share-status {
-    top: max(8px, calc(clamp(18px, 2.4vw, 36px) - 10px));
+    top: max(14px, calc(clamp(18px, 2.4vw, 36px) - 4px));
     width: 32px;
     justify-content: center;
   }
@@ -465,8 +465,8 @@
   }
 
   .share-status__icon {
-    width: 16px;
-    height: 16px;
+    width: 11px;
+    height: 11px;
   }
 
   .answer {

@@ -123,7 +123,7 @@ export function renderSnapshotHtml(snapshot: StatusSnapshot, token: string, orig
   const checked = formatSnapshotChecked(snapshot.checkedAt)
   const affected = snapshot.affected.map((id) => SERVICE_NAMES[id]).join(' · ')
   const canonical = `${origin}${snapshotUrl(token)}`
-  const image = `${origin}/api/og?token=${encodeURIComponent(token)}`
+  const image = `${origin}/api/og-v2?token=${encodeURIComponent(token)}`
   const state = JSON.stringify(snapshot).replaceAll('<', '\\u003c')
 
   return `<!doctype html>
