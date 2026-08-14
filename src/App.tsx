@@ -135,11 +135,8 @@ function App() {
   const services = status?.services ?? FALLBACK_SERVICES
   const issues = services.filter((service) => service.health === 'outage' || service.health === 'degraded')
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
+  const [panelOpen, setPanelOpen] = useState(false)
   const { dark, reducedMotion, coarsePointer } = useMediaState()
-  const panelRef = useRef<HTMLElement>(null)
-  const targetRef = useRef({ x: window.innerWidth * 0.64, y: window.innerHeight * 0.52 })
-  const currentRef = useRef({ ...targetRef.current })
-  const panelHoverRef = useRef(false)
   const pointerFrame = useRef<number | null>(null)
 
   const shader = useMemo(() => {
@@ -163,34 +160,19 @@ function App() {
   }, [answer])
 
   useEffect(() => {
-    if (answer !== 'no' || coarsePointer) return
+    if (answer !== 'no') setPanelOpen(false)
+  }, [answer])
 
-    let frame = 0
-    const animate = () => {
-      const panel = panelRef.current
-      if (panel) {
-        const ease = reducedMotion ? 1 : 0.14
-        currentRef.current.x += (targetRef.current.x - currentRef.current.x) * ease
-        currentRef.current.y += (targetRef.current.y - currentRef.current.y) * ease
-        panel.style.transform = `translate3d(${currentRef.current.x}px, ${currentRef.current.y}px, 0)`
-      }
-      frame = window.requestAnimationFrame(animate)
+  useEffect(() => {
+    if (answer !== 'no' || !panelOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPanelOpen(false)
     }
-    frame = window.requestAnimationFrame(animate)
-    return () => window.cancelAnimationFrame(frame)
-  }, [answer, coarsePointer, reducedMotion])
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [answer, panelOpen])
 
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
-    if (!coarsePointer && answer === 'no' && !panelHoverRef.current) {
-      const panelWidth = panelRef.current?.offsetWidth ?? 350
-      const panelHeight = panelRef.current?.offsetHeight ?? 280
-      const gap = 26
-      targetRef.current = {
-        x: Math.max(18, Math.min(event.clientX + gap, window.innerWidth - panelWidth - 18)),
-        y: Math.max(18, Math.min(event.clientY + gap, window.innerHeight - panelHeight - 18)),
-      }
-    }
-
     if (!coarsePointer && pointerFrame.current === null) {
       const clientX = event.clientX
       const clientY = event.clientY
@@ -249,34 +231,39 @@ function App() {
       </footer>
 
       {answer === 'no' && (
-        <aside
-          className="issue-panel"
-          ref={panelRef}
-          aria-label="Current service issues"
-          onPointerEnter={() => { panelHoverRef.current = true }}
-          onPointerLeave={() => { panelHoverRef.current = false }}
-        >
-          <div className="issue-panel__heading">
+        <aside className="issue-panel" data-open={panelOpen} aria-label="Current service issues">
+          <button
+            type="button"
+            className="issue-panel__heading"
+            aria-expanded={panelOpen}
+            aria-controls="issue-list"
+            onClick={() => setPanelOpen((open) => !open)}
+          >
             <span>Current signal</span>
-            <span>{String(issues.length).padStart(2, '0')}</span>
-          </div>
-          <div className="issue-list">
-            {issues.map((issue, index) => (
-              <article className="issue" key={issue.id}>
-                <div className="issue__index">{String(index + 1).padStart(2, '0')}</div>
-                <div>
-                  <h2>{issue.name}</h2>
-                  <p>{issue.detail}</p>
-                  <div className="issue__sources">
-                    {issue.links.map((link) => (
-                      <a href={link.url} target="_blank" rel="noreferrer" key={link.url}>
-                        {link.label}<span aria-hidden="true">↗</span>
-                      </a>
-                    ))}
+            <span className="issue-panel__meta">
+              {String(issues.length).padStart(2, '0')}
+              <span className="issue-panel__chevron" aria-hidden="true" />
+            </span>
+          </button>
+          <div className="issue-panel__body">
+            <div className="issue-list" id="issue-list" inert={!panelOpen}>
+              {issues.map((issue, index) => (
+                <article className="issue" key={issue.id}>
+                  <div className="issue__index">{String(index + 1).padStart(2, '0')}</div>
+                  <div>
+                    <h2>{issue.name}</h2>
+                    <p>{issue.detail}</p>
+                    <div className="issue__sources">
+                      {issue.links.map((link) => (
+                        <a href={link.url} target="_blank" rel="noreferrer" key={link.url}>
+                          {link.label}<span aria-hidden="true">↗</span>
+                        </a>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              ))}
+            </div>
           </div>
         </aside>
       )}
