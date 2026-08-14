@@ -14,6 +14,7 @@ type MediaState = {
   dark: boolean
   reducedMotion: boolean
   coarsePointer: boolean
+  compact: boolean
 }
 
 const CACHE_KEY = 'caniworknow:live-status'
@@ -23,6 +24,7 @@ const readMedia = (): MediaState => ({
   dark: window.matchMedia('(prefers-color-scheme: dark)').matches,
   reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   coarsePointer: window.matchMedia('(pointer: coarse)').matches,
+  compact: window.matchMedia('(max-width: 700px)').matches,
 })
 
 function useMediaState() {
@@ -33,6 +35,7 @@ function useMediaState() {
       window.matchMedia('(prefers-color-scheme: dark)'),
       window.matchMedia('(prefers-reduced-motion: reduce)'),
       window.matchMedia('(pointer: coarse)'),
+      window.matchMedia('(max-width: 700px)'),
     ]
     const update = () => setMedia(readMedia())
     queries.forEach((query) => query.addEventListener('change', update))
@@ -54,6 +57,7 @@ function readCachedStatus(): LiveStatusResponse | null {
 
 function useLiveStatus() {
   const [status, setStatus] = useState<LiveStatusResponse | null>(readCachedStatus)
+  const [liveResolved, setLiveResolved] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -67,6 +71,7 @@ function useLiveStatus() {
         if (!response.ok) throw new Error(`Status request failed: ${response.status}`)
         const next = await response.json() as LiveStatusResponse
         setStatus(next)
+        setLiveResolved(true)
         localStorage.setItem(CACHE_KEY, JSON.stringify(next))
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return
@@ -82,7 +87,7 @@ function useLiveStatus() {
     }
   }, [])
 
-  return status
+  return { status, liveResolved }
 }
 
 function ServiceIcon({ id }: { id: ServiceId }) {
@@ -130,14 +135,16 @@ const FALLBACK_SERVICES: ServiceStatus[] = (['github', 'cloudflare', 'claude', '
 }))
 
 function App() {
-  const status = useLiveStatus()
+  const { status, liveResolved } = useLiveStatus()
   const answer: Answer = status?.answer ?? 'unknown'
   const services = status?.services ?? FALLBACK_SERVICES
+  const checkedAt = status?.checkedAt
   const issues = services.filter((service) => service.health === 'outage' || service.health === 'degraded')
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
   const [panelOpen, setPanelOpen] = useState(false)
-  const [shareState, setShareState] = useState<'idle' | 'creating' | 'copied' | 'error'>('idle')
-  const { dark, reducedMotion, coarsePointer } = useMediaState()
+  const [shareSnapshot, setShareSnapshot] = useState<{ url: string; answer: Answer; checkedAt: string } | null>(null)
+  const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const { dark, reducedMotion, coarsePointer, compact } = useMediaState()
   const pointerFrame = useRef<number | null>(null)
 
   const shader = useMemo(() => {
@@ -173,6 +180,33 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [answer, panelOpen])
 
+  useEffect(() => {
+    if (!liveResolved || !checkedAt) return
+    setShareSnapshot(null)
+    const controller = new AbortController()
+    let active = true
+
+    const preloadSnapshot = async () => {
+      try {
+        const response = await fetch('/api/share', {
+          headers: { accept: 'application/json' },
+          signal: controller.signal,
+        })
+        if (!response.ok) throw new Error(`Share request failed: ${response.status}`)
+        const snapshot = await response.json() as { url: string; answer: Answer; checkedAt: string }
+        if (active && snapshot.answer === answer) setShareSnapshot(snapshot)
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+      }
+    }
+
+    void preloadSnapshot()
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [answer, checkedAt, liveResolved])
+
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
     if (!coarsePointer && pointerFrame.current === null) {
       const clientX = event.clientX
@@ -190,26 +224,18 @@ function App() {
   const answerWord = displayAnswer(answer)
 
   const handleShare = async () => {
-    if (shareState === 'creating') return
-    setShareState('creating')
+    if (!shareSnapshot) return
+    const title = `${shareSnapshot.answer.toUpperCase()} — Can I Work Now?`
     try {
-      const response = await fetch('/api/share', { headers: { accept: 'application/json' } })
-      if (!response.ok) throw new Error(`Share request failed: ${response.status}`)
-      const snapshot = await response.json() as { url: string; answer: Answer }
-      const title = `${snapshot.answer.toUpperCase()} — Can I Work Now?`
-      if (navigator.share) {
+      if ((coarsePointer || compact) && navigator.share) {
         try {
-          await navigator.share({ title, text: 'Status snapshot from Can I Work Now?', url: snapshot.url })
-          setShareState('idle')
+          await navigator.share({ title, text: 'Status snapshot from Can I Work Now?', url: shareSnapshot.url })
           return
         } catch (error) {
-          if (error instanceof DOMException && error.name === 'AbortError') {
-            setShareState('idle')
-            return
-          }
+          if (error instanceof DOMException && error.name === 'AbortError') return
         }
       }
-      await navigator.clipboard.writeText(snapshot.url)
+      await navigator.clipboard.writeText(shareSnapshot.url)
       setShareState('copied')
       window.setTimeout(() => setShareState('idle'), 2400)
     } catch {
@@ -249,11 +275,13 @@ function App() {
         type="button"
         className="share-status"
         aria-label="Share current status snapshot"
-        aria-busy={shareState === 'creating'}
+        disabled={!shareSnapshot}
         onClick={() => { void handleShare() }}
       >
-        <span aria-hidden="true">↗</span>
-        <span>{shareState === 'creating' ? 'CREATING' : 'SHARE'}</span>
+        <svg className="share-status__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M5 11 11 5M6.5 5H11v4.5" />
+        </svg>
+        <span className="share-status__label">SHARE</span>
       </button>
       <span className="share-feedback" role="status" aria-live="polite">
         {shareState === 'copied' ? 'Snapshot link copied' : shareState === 'error' ? 'Could not create snapshot' : ''}

@@ -26,11 +26,21 @@ describe('first paint stability', () => {
     expect(appCss).not.toContain('min-height: max(100svh, 740px)')
   })
 
-  it('offers a native share action backed by immutable snapshots', () => {
+  it('preloads snapshots and keeps sharing visually stable', () => {
     expect(appSource).toContain("fetch('/api/share'")
     expect(appSource).toContain('navigator.share')
     expect(appSource).toContain('navigator.clipboard.writeText')
+    expect(appSource).toContain('if ((coarsePointer || compact) && navigator.share)')
+    expect(appSource).toContain('liveResolved')
+    expect(appSource).toContain('snapshot.answer === answer')
+    expect(appSource).toContain('setShareSnapshot(null)')
     expect(appSource).toContain('aria-label="Share current status snapshot"')
+    expect(appSource).toContain('className="share-status__icon"')
+    expect(appSource).toContain('className="share-status__label"')
+    expect(appSource).not.toContain("'creating'")
+    expect(appSource).not.toContain('CREATING')
+    expect(appCss).not.toContain('font: 650 10px/1 inherit')
+    expect(appCss).toContain('.share-status__label')
   })
 
   it('preloads the exact primary font used by the app', () => {
