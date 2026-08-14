@@ -121,6 +121,7 @@ export function renderSnapshotHtml(snapshot: StatusSnapshot, token: string, orig
   const answer = snapshotAnswerWord(snapshot.answer)
   const description = snapshotIssueLabel(snapshot)
   const checked = formatSnapshotChecked(snapshot.checkedAt)
+  const affected = snapshot.affected.map((id) => SERVICE_NAMES[id]).join(' · ')
   const canonical = `${origin}${snapshotUrl(token)}`
   const image = `${origin}/api/og?token=${encodeURIComponent(token)}`
   const state = JSON.stringify(snapshot).replaceAll('<', '\\u003c')
@@ -148,26 +149,37 @@ export function renderSnapshotHtml(snapshot: StatusSnapshot, token: string, orig
   <meta name="twitter:image" content="${escapeHtml(image)}" />
   <title>${answer} — Status snapshot</title>
   <style>
-    :root{font-family:ui-sans-serif,system-ui,sans-serif;color:#13251e;background:#dcebdc;color-scheme:light dark}
-    *{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 28% 20%,#f4efe2 0,#a8d3bf 38%,#347d68 100%)}
-    main{width:min(680px,100%);padding:clamp(28px,6vw,64px);background:rgba(244,239,226,.9);box-shadow:0 20px 80px rgba(7,25,21,.18);backdrop-filter:blur(18px)}
-    .eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}.verdict{margin:.42em 0 0;font-size:clamp(7rem,30vw,15rem);font-weight:850;line-height:.72;letter-spacing:-.09em}.detail{margin:36px 0 0;font-size:clamp(1.1rem,3vw,1.45rem);font-weight:650}.checked{margin:8px 0 0;opacity:.64}.comparison{margin-top:34px;padding-top:22px;border-top:1px solid rgba(19,37,30,.2);line-height:1.45}.comparison strong{display:block;margin-bottom:5px}.action{display:inline-block;margin-top:20px;color:inherit;font-size:12px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;text-underline-offset:4px}
-    @media(prefers-color-scheme:dark){:root{color:#edf5eb;background:#071915}body{background:radial-gradient(circle at 28% 20%,#395c48 0,#17453a 42%,#050806 100%)}main{background:rgba(5,8,6,.86)}.comparison{border-color:rgba(237,245,235,.2)}}
+    @font-face{font-family:'Instrument Sans Variable';font-style:normal;font-display:swap;font-weight:400 700;src:url('/fonts/instrument-sans-latin-wght-normal.woff2') format('woff2-variations')}
+    :root{font-family:'Instrument Sans Variable','Helvetica Neue',Helvetica,Arial,sans-serif;color:#11100e;background:#f4efe2;color-scheme:light dark;--ink:#11100e;--hairline:rgba(17,16,14,.24);--tone-a:#f4efe2;--tone-b:#83c3aa;--tone-c:#f0bea0;--tone-d:#bfddcf;--label-bg:rgba(244,239,226,.84);--label-ink:#11100e}
+    *{box-sizing:border-box}html,body{min-width:320px;min-height:100%;margin:0}body{height:100svh;overflow:hidden;background:var(--tone-a);font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}.snapshot{position:relative;isolation:isolate;width:100%;height:100svh;overflow:hidden;color:var(--ink);background:var(--tone-a)}
+    .snapshot--no{--tone-a:#f2e5da;--tone-b:#eb7358;--tone-c:#a31728;--tone-d:#d9a342}.snapshot--unknown{--tone-a:#eee9de;--tone-b:#b9b49d;--tone-c:#d6cfad;--tone-d:#8f8b76}
+    .shader,.shader::before,.veil{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.shader{z-index:-3;inset:-10%;width:120%;height:120%;background:radial-gradient(ellipse at 12% 18%,var(--tone-a) 0 17%,transparent 47%),radial-gradient(ellipse at 72% 8%,var(--tone-b) 0,transparent 42%),radial-gradient(ellipse at 92% 38%,var(--tone-c) 0,transparent 43%),radial-gradient(ellipse at 34% 88%,var(--tone-b) 0,transparent 48%),var(--tone-d);background-size:112% 112%;filter:saturate(.84) contrast(1.06);animation:shader-drift 18s ease-in-out infinite alternate}.shader::before{content:'';inset:-8%;width:116%;height:116%;background:radial-gradient(circle at 70% 28%,var(--tone-a) 0,transparent 34%),radial-gradient(circle at 25% 68%,var(--tone-c) 0,transparent 38%);filter:blur(42px);opacity:.34;animation:shader-breathe 13s ease-in-out infinite alternate}.snapshot--no .shader{filter:saturate(.92) contrast(1.14)}.veil{z-index:-2;background:linear-gradient(110deg,rgba(255,255,255,.26),transparent 44%),radial-gradient(circle at 50% 45%,transparent 26%,rgba(18,14,9,.09) 120%);mix-blend-mode:soft-light}.snapshot::after{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;box-shadow:inset 0 0 0 1px var(--hairline)}
+    @keyframes shader-drift{0%{transform:translate3d(-2%,-1%,0) scale(1.02);background-position:0 0}55%{transform:translate3d(2%,1.5%,0) scale(1.06);background-position:5% 3%}100%{transform:translate3d(-1%,2%,0) scale(1.035);background-position:-3% 6%}}@keyframes shader-breathe{from{transform:translate3d(-2%,1%,0) scale(.98) rotate(-2deg)}to{transform:translate3d(3%,-2%,0) scale(1.07) rotate(2deg)}}
+    .masthead{position:absolute;z-index:4;top:clamp(18px,2.4vw,36px);left:clamp(18px,2.4vw,40px);right:clamp(18px,2.4vw,40px);text-align:center}.wordmark,.snapshot-label,.checked,.comparison,.action,.affected{font-size:11px;font-weight:640;letter-spacing:.075em;text-transform:uppercase}.snapshot-label,.checked,.comparison,.action,.affected{color:var(--label-ink);background:var(--label-bg);box-shadow:0 0 0 3px var(--label-bg);border-radius:1px;backdrop-filter:blur(7px)}.snapshot-label{position:absolute;z-index:5;top:clamp(18px,2.4vw,36px);right:clamp(18px,2.4vw,40px)}
+    .answer{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;padding:82px 20px 96px;text-align:center;pointer-events:none}.verdict{margin:0;color:var(--ink);font-size:clamp(10rem,35vw,42rem);font-weight:850;line-height:.7;letter-spacing:-.105em;text-indent:-.105em;text-shadow:0 1px 0 rgba(255,255,255,.11);transform:scaleX(1.035);transform-origin:center}.snapshot--no .verdict{font-size:clamp(13rem,42vw,48rem);letter-spacing:-.12em;text-indent:-.12em;transform:scaleX(1.08) rotate(-.7deg)}.snapshot--unknown .verdict{font-size:clamp(3.4rem,15vw,11rem);font-weight:420;letter-spacing:0;text-indent:0;white-space:nowrap;opacity:.42}.affected{margin-top:clamp(22px,3vw,38px)}
+    .checked,.comparison,.action{position:absolute;z-index:5;bottom:clamp(18px,2.4vw,34px)}.checked{left:clamp(18px,2.4vw,40px);margin:0}.comparison{left:50%;transform:translateX(-50%);white-space:nowrap}.action{right:clamp(18px,2.4vw,40px);display:inline-flex;align-items:center;gap:6px;color:var(--label-ink);text-decoration:none;transition:transform 180ms ease}.action:hover,.action:focus-visible{transform:translateY(-1px)}.action svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.35}
+    :focus-visible{outline:2px solid #0b58ff;outline-offset:4px}
+    @media(prefers-color-scheme:dark){:root{--ink:#f3f0e8;--hairline:rgba(243,240,232,.24);--tone-a:#071915;--tone-b:#17453a;--tone-c:#7a654c;--tone-d:#395c48;--label-bg:rgba(5,8,6,.78);--label-ink:#f3f0e8}.snapshot--no{--tone-a:#17090a;--tone-b:#4f1017;--tone-c:#af2932;--tone-d:#80602d}.snapshot--unknown{--tone-a:#0c0d0b;--tone-b:#292a24;--tone-c:#656452;--tone-d:#171712}.shader{filter:saturate(.74) contrast(1.14) brightness(.84)}.snapshot--no .shader{filter:saturate(.9) contrast(1.28) brightness(.72)}:focus-visible{outline-color:#8ab4ff}}
+    @media(max-width:700px){.masthead{left:72px;right:72px}.snapshot-label{font-size:0}.snapshot-label::after{content:'SNAPSHOT';font-size:9px;letter-spacing:.06em}.answer{align-content:start;padding-top:clamp(156px,27svh,230px)}.verdict{font-size:clamp(9rem,45vw,18rem)}.snapshot--no .verdict{font-size:clamp(12rem,58vw,22rem)}.affected{margin-top:20px;font-size:10px}.comparison{bottom:54px}.checked{max-width:58%;font-size:9px;letter-spacing:.04em}.action{font-size:9px;letter-spacing:.05em}}
+    @media(max-height:500px) and (orientation:landscape){.masthead,.snapshot-label{top:12px}.answer{align-content:center;padding:48px 20px 54px}.verdict{font-size:min(37vw,14rem)}.snapshot--no .verdict{font-size:min(43vw,14rem)}.affected{margin-top:12px}.checked,.comparison,.action{bottom:10px}}
+    @media (prefers-reduced-motion:reduce){.shader,.shader::before{animation:none}}
   </style>
 </head>
 <body>
-  <main>
-    <div class="eyebrow">Can I Work Now · Status snapshot</div>
-    <h1 class="verdict">${answer}</h1>
-    <p class="detail">${escapeHtml(description)}</p>
-    <p class="checked">${escapeHtml(checked)}</p>
-    <section class="comparison" id="comparison" aria-live="polite">
-      <strong>This shared snapshot is being compared with the live status.</strong>
-      <span>Checking for a newer verdict…</span>
+  <main class="snapshot snapshot--${snapshot.answer}">
+    <div class="shader" aria-hidden="true"></div>
+    <div class="veil" aria-hidden="true"></div>
+    <header class="masthead"><span class="wordmark">CAN I WORK NOW</span></header>
+    <div class="snapshot-label">STATUS SNAPSHOT</div>
+    <section class="answer" aria-labelledby="snapshot-verdict">
+      <h1 class="verdict" id="snapshot-verdict">${answer}</h1>
+      ${affected ? `<div class="affected"><span>AFFECTED</span> · ${escapeHtml(affected)}</div>` : ''}
     </section>
-    <a class="action" href="/">View live status →</a>
+    <p class="checked">${escapeHtml(checked)}</p>
+    <div class="comparison" id="comparison" role="status" aria-live="polite">CHECKING LIVE</div>
+    <a class="action" href="/"><span>View live status</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 11 11 5M6.5 5H11v4.5"/></svg></a>
   </main>
-  <script>const snapshot=${state};fetch('/api/status',{headers:{accept:'application/json'}}).then(r=>{if(!r.ok)throw new Error();return r.json()}).then(current=>{const currentAffected=current.services.filter(service=>service.health==='outage'||service.health==='degraded').map(service=>service.id).join(',');const snapshotAffected=snapshot.affected.join(',');const changed=current.answer!==snapshot.answer||currentAffected!==snapshotAffected;const newer=Date.parse(current.checkedAt)>Date.parse(snapshot.checkedAt);const comparison=document.querySelector('#comparison');if(changed){comparison.innerHTML='<strong>Status has changed.</strong><span>This snapshot said '+snapshot.answer.toUpperCase()+' when checked. The current verdict is '+current.answer.toUpperCase()+'.</span>'}else if(newer){comparison.innerHTML='<strong>A newer check is available.</strong><span>The current verdict is still '+current.answer.toUpperCase()+'.</span>'}else{comparison.innerHTML='<strong>Still current.</strong><span>The live verdict still matches this snapshot.</span>'}}).catch(()=>{document.querySelector('#comparison').innerHTML='<strong>Live comparison unavailable.</strong><span>The timestamp above shows when this snapshot was checked.</span>'})</script>
+  <script>const snapshot=${state};const comparison=document.querySelector('#comparison');const setComparison=(text,state)=>{comparison.textContent=text;comparison.dataset.state=state};fetch('/api/status',{headers:{accept:'application/json'}}).then(r=>{if(!r.ok)throw new Error();return r.json()}).then(current=>{const currentAffected=current.services.filter(service=>service.health==='outage'||service.health==='degraded').map(service=>service.id).join(',');const snapshotAffected=snapshot.affected.join(',');const changed=current.answer!==snapshot.answer||currentAffected!==snapshotAffected;const newer=Date.parse(current.checkedAt)>Date.parse(snapshot.checkedAt);const currentAnswer=current.answer.toUpperCase();if(changed){setComparison('CURRENTLY '+currentAnswer+' · STATUS CHANGED','changed')}else if(newer){setComparison('STILL '+currentAnswer+' · NEWER CHECK','current')}else{setComparison('STILL '+currentAnswer,'current')}}).catch(()=>setComparison('LIVE CHECK UNAVAILABLE','error'))</script>
 </body>
 </html>`
 }

@@ -61,9 +61,78 @@ describe('status snapshots', () => {
     expect(html).toContain('Checked Aug 14, 2026 · 00:30 UTC')
     expect(html).toContain(`https://caniworknow.com${snapshotUrl(token)}`)
     expect(html).toContain('/api/og?token=')
-    expect(html).toContain('This shared snapshot')
+    expect(html).toContain('CHECKING LIVE')
     expect(html).toContain('View live status')
     expect(html).toContain("fetch('/api/status'")
+  })
+
+  it('renders a minimal full-screen snapshot in the live dashboard style', () => {
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    const html = renderSnapshotHtml(snapshot!, token, 'https://caniworknow.com')
+    const body = html.slice(html.indexOf('<body>'))
+
+    expect(body).toContain('class="snapshot snapshot--no"')
+    expect(body).toContain('class="shader"')
+    expect(body).toContain('class="verdict"')
+    expect(body).toContain('class="comparison"')
+    expect(body).toContain('STATUS SNAPSHOT')
+    expect(body).toContain('Checked Aug 14, 2026 · 00:30 UTC')
+    expect(body).toContain('View live status')
+    expect(body).not.toContain('class="detail"')
+    expect(body).not.toContain('This shared snapshot')
+    expect(body).not.toContain('The current verdict is')
+    expect(html).toContain('@keyframes shader-drift')
+    expect(html).toContain('@media (prefers-reduced-motion:reduce)')
+    expect(html).toContain("font-family:'Instrument Sans Variable'")
+    expect(html).toContain("font-weight:400 700;src:url('/fonts/instrument-sans-latin-wght-normal.woff2')")
+    expect(html).not.toContain('width:min(680px,100%)')
+  })
+
+  it('keeps the UNKNOWN verdict within compact viewports', () => {
+    const unknown = { ...status, answer: 'unknown' as const, services: [] }
+    const token = createStatusSnapshot(unknown, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    const html = renderSnapshotHtml(snapshot!, token, 'https://caniworknow.com')
+
+    expect(html).toContain('.snapshot--unknown .verdict{font-size:clamp(3.4rem,15vw,11rem)')
+    expect(html).toContain('white-space:nowrap')
+  })
+
+  it('shortens the mobile snapshot marker to protect the wordmark', () => {
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    const html = renderSnapshotHtml(snapshot!, token, 'https://caniworknow.com')
+
+    expect(html).toContain(".snapshot-label::after{content:'SNAPSHOT'")
+  })
+
+  it('fits the snapshot composition in short landscape viewports', () => {
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    const html = renderSnapshotHtml(snapshot!, token, 'https://caniworknow.com')
+
+    expect(html).toContain('@media(max-height:500px) and (orientation:landscape)')
+    expect(html).toContain('.snapshot--no .verdict{font-size:min(43vw,14rem)}')
+    expect(html).toContain('.affected{margin-top:12px}')
+  })
+
+  it('labels affected services without restoring explanatory copy', () => {
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    const html = renderSnapshotHtml(snapshot!, token, 'https://caniworknow.com')
+
+    expect(html).toContain('<div class="affected"><span>AFFECTED</span> · Claude</div>')
+  })
+
+  it('keeps peripheral status text readable over every shader region', () => {
+    const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
+    const snapshot = parseStatusSnapshot(token, SECRET)
+    const html = renderSnapshotHtml(snapshot!, token, 'https://caniworknow.com')
+
+    expect(html).toContain('--label-bg:rgba(244,239,226,.84);--label-ink:#11100e')
+    expect(html).toContain('.snapshot-label,.checked,.comparison,.action,.affected{color:var(--label-ink);background:var(--label-bg)')
+    expect(html).toContain('--label-bg:rgba(5,8,6,.78);--label-ink:#f3f0e8')
   })
 
   it('renders a timestamped 1200×630 PNG social card', async () => {

@@ -80,6 +80,7 @@ describe('snapshot API handlers', () => {
     expect(response.statusCode).toBe(200)
     expect(response.headers.get('cache-control')).toContain('immutable')
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'")
+    expect(response.headers.get('content-security-policy')).toContain("font-src 'self'")
     expect(response.headers.get('x-frame-options')).toBe('DENY')
     expect(response.body).toContain(`rel="canonical" href="https://caniworknow.com/s/${token}"`)
     expect(response.body).not.toContain('evil.example')
