@@ -54,6 +54,22 @@ describe('first paint stability', () => {
     expect(iconRule).toContain('height: 11px')
   })
 
+  it('describes affected services in one centered incident-panel label', () => {
+    expect(appSource).toContain("issues.length === 1 ? '1 SERVICE AFFECTED'")
+    expect(appSource).toContain("`${issues.length} SERVICES AFFECTED`")
+    expect(appSource).not.toContain('CURRENT SIGNAL')
+    expect(appSource).not.toContain("String(issues.length).padStart(2, '0')")
+    expect(appCss).toMatch(/\.issue-panel__heading\s*\{[\s\S]*?place-items:\s*center/)
+  })
+
+  it('enables incident-list scrolling only after expansion settles', () => {
+    expect(appSource).toContain('panelScrollable')
+    expect(appSource).toContain('onTransitionEnd')
+    expect(appSource).toContain('window.setTimeout(() => setPanelScrollable(true), 320)')
+    expect(appCss).toMatch(/\.issue-list\s*\{[\s\S]*?overflow-y:\s*hidden/)
+    expect(appCss).toContain(".issue-panel[data-scrollable='true'] .issue-list")
+  })
+
   it('preloads the exact primary font used by the app', () => {
     expect(indexHtml).toContain('rel="preload"')
     expect(indexHtml).toContain('/fonts/instrument-sans-latin-wght-normal.woff2')
