@@ -9,11 +9,11 @@ import {
   renderSnapshotHtml,
   snapshotUrl,
 } from './snapshot.js'
-import { renderSnapshotPng } from './snapshot-image.js'
+import { alignedTextLeft, alignedTextTop, renderSnapshotPng as renderSnapshotPngV4, SOCIAL_CARD_TYPE } from './snapshot-image-v4.js'
 import { renderSnapshotHtml as renderSnapshotHtmlV3 } from './snapshot-v3.js'
 
 const SECRET = 'test-secret-with-enough-entropy'
-const snapshotImageV3Source = readFileSync(fileURLToPath(new URL('./snapshot-image-v3.ts', import.meta.url)), 'utf8')
+const snapshotImageV4Source = readFileSync(fileURLToPath(new URL('./snapshot-image-v4.ts', import.meta.url)), 'utf8')
 const status: LiveStatusResponse = {
   answer: 'no',
   checkedAt: '2026-08-14T00:30:00.000Z',
@@ -159,17 +159,49 @@ describe('status snapshots', () => {
   })
 
   it('renders OG text with a Vercel-compatible bundled TrueType font', () => {
-    expect(snapshotImageV3Source).toContain("new URL('../public/fonts/instrument-sans-variable.ttf', import.meta.url)")
-    expect(snapshotImageV3Source).toContain('fontfile: SNAPSHOT_FONT_PATH')
-    expect(snapshotImageV3Source).not.toContain('instrument-sans-latin-wght-normal.woff2')
-    expect(snapshotImageV3Source).not.toContain('Arial, Helvetica, sans-serif')
-    expect(snapshotImageV3Source).not.toContain('<text')
+    expect(snapshotImageV4Source).toContain("new URL('../public/fonts/instrument-sans-variable.ttf', import.meta.url)")
+    expect(snapshotImageV4Source).toContain('fontfile: SNAPSHOT_FONT_PATH')
+    expect(snapshotImageV4Source).not.toContain('instrument-sans-latin-wght-normal.woff2')
+    expect(snapshotImageV4Source).not.toContain('Arial, Helvetica, sans-serif')
+    expect(snapshotImageV4Source).not.toContain('<text')
+  })
+
+  it('positions measured text against the real card geometry', () => {
+    expect(alignedTextLeft(400, 400, 196, 'center')).toBe(502)
+    const footerLeft = alignedTextLeft(652, 500, 286, 'right')
+    expect(footerLeft).toBe(866)
+    expect(footerLeft + 286).toBe(1152)
+  })
+
+  it('vertically centers measured verdict glyphs on the card', () => {
+    const top = alignedTextTop(90, 450, 260, 'center')
+    expect(top).toBe(185)
+    expect(top + 130).toBe(315)
+  })
+
+  it('keeps social-card typography legible at messaging preview size', () => {
+    expect(SOCIAL_CARD_TYPE).toEqual({ masthead: 34, metadata: 24, yes: 380, no: 440, dunno: 290 })
+  })
+
+  it('uses the compact bold DUNNO verdict for indeterminate cards', () => {
+    expect(snapshotImageV4Source).toContain("snapshot.answer === 'unknown' ? 'DUNNO'")
+  })
+
+  it('uses one disciplined metadata style and a centered masthead', () => {
+    expect(snapshotImageV4Source).toContain('function metaLayer')
+    expect(snapshotImageV4Source).toContain("textLayer('CAN I WORK NOW'")
+    expect(snapshotImageV4Source).not.toContain("textLayer('STATUS SNAPSHOT'")
+  })
+
+  it('adds a full-bleed print-grain treatment to the v4 social card', () => {
+    expect(snapshotImageV4Source).toContain('function createGrainOverlay')
+    expect(snapshotImageV4Source).toContain("blend: 'overlay'")
   })
 
   it('keeps checked time and affected services visually separated', async () => {
     const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
     const snapshot = parseStatusSnapshot(token, SECRET)
-    const png = await renderSnapshotPng(snapshot!)
+    const png = await renderSnapshotPngV4(snapshot!)
     const { data, info } = await sharp(png)
       .extract({ left: 570, top: 535, width: 60, height: 75 })
       .raw()
@@ -186,7 +218,7 @@ describe('status snapshots', () => {
   it('renders a timestamped 1200×630 PNG social card', async () => {
     const token = createStatusSnapshot(status, SECRET, '2026-08-14T00:31:00.000Z')
     const snapshot = parseStatusSnapshot(token, SECRET)
-    const png = await renderSnapshotPng(snapshot!)
+    const png = await renderSnapshotPngV4(snapshot!)
 
     expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a')
     expect(png.readUInt32BE(16)).toBe(1200)

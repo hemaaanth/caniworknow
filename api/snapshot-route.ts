@@ -1,5 +1,5 @@
 import legacyHandler from './snapshot-v1.js'
-import currentHandler from './snapshot-v3.js'
+import currentHandler from './snapshot-v4.js'
 import { isSnapshotId } from '../server/snapshot-store.js'
 
 interface RequestLike {

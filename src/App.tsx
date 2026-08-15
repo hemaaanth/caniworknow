@@ -142,6 +142,7 @@ function App() {
   const issues = services.filter((service) => service.health === 'outage' || service.health === 'degraded')
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
   const [panelOpen, setPanelOpen] = useState(false)
+  const [panelScrollable, setPanelScrollable] = useState(false)
   const [shareSnapshot, setShareSnapshot] = useState<{ url: string; answer: Answer; checkedAt: string } | null>(null)
   const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle')
   const { dark, reducedMotion, coarsePointer, compact } = useMediaState()
@@ -168,13 +169,25 @@ function App() {
   }, [answer])
 
   useEffect(() => {
-    if (answer !== 'no') setPanelOpen(false)
+    if (answer !== 'no') {
+      setPanelOpen(false)
+      setPanelScrollable(false)
+    }
   }, [answer])
+
+  useEffect(() => {
+    if (!panelOpen) return
+    const timeout = window.setTimeout(() => setPanelScrollable(true), 320)
+    return () => window.clearTimeout(timeout)
+  }, [panelOpen])
 
   useEffect(() => {
     if (answer !== 'no' || !panelOpen) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPanelOpen(false)
+      if (event.key === 'Escape') {
+        setPanelScrollable(false)
+        setPanelOpen(false)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -222,6 +235,12 @@ function App() {
   }
 
   const answerWord = displayAnswer(answer)
+  const issueSummary = issues.length === 1 ? '1 SERVICE AFFECTED' : `${issues.length} SERVICES AFFECTED`
+
+  const handlePanelToggle = () => {
+    setPanelScrollable(false)
+    setPanelOpen((open) => !open)
+  }
 
   const handleShare = async () => {
     if (!shareSnapshot) return
@@ -303,21 +322,28 @@ function App() {
       </footer>
 
       {answer === 'no' && (
-        <aside className="issue-panel" data-open={panelOpen} aria-label="Current service issues">
+        <aside
+          className="issue-panel"
+          data-open={panelOpen}
+          data-scrollable={panelScrollable}
+          aria-label="Current service issues"
+        >
           <button
             type="button"
             className="issue-panel__heading"
             aria-expanded={panelOpen}
             aria-controls="issue-list"
-            onClick={() => setPanelOpen((open) => !open)}
+            onClick={handlePanelToggle}
           >
-            <span>Current signal</span>
-            <span className="issue-panel__meta">
-              {String(issues.length).padStart(2, '0')}
-              <span className="issue-panel__chevron" aria-hidden="true" />
-            </span>
+            <span>{issueSummary}</span>
+            <span className="issue-panel__chevron" aria-hidden="true" />
           </button>
-          <div className="issue-panel__body">
+          <div
+            className="issue-panel__body"
+            onTransitionEnd={(event) => {
+              if (event.propertyName === 'grid-template-rows' && panelOpen) setPanelScrollable(true)
+            }}
+          >
             <div className="issue-list" id="issue-list" inert={!panelOpen}>
               {issues.map((issue, index) => (
                 <article className="issue" key={issue.id}>

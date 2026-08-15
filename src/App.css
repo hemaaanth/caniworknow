@@ -308,18 +308,19 @@
 }
 
 .issue-panel__heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  position: relative;
+  display: grid;
+  place-items: center;
   width: 100%;
-  padding: 12px 14px;
+  padding: 12px 42px;
   border: 0;
   border-top: 1px solid color-mix(in srgb, var(--panel-ink) 16%, transparent);
   background: var(--panel);
   font-size: 10px;
   font-weight: 650;
+  line-height: 1;
   letter-spacing: 0.1em;
-  text-align: left;
+  text-align: center;
   text-transform: uppercase;
   cursor: pointer;
   transition: background 180ms ease;
@@ -337,24 +338,21 @@
   outline-offset: -3px;
 }
 
-.issue-panel__meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .issue-panel__chevron {
+  position: absolute;
+  top: 50%;
+  right: 16px;
   width: 6px;
   height: 6px;
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
   opacity: 0.62;
-  transform: translateY(-2px) rotate(45deg);
+  transform: translateY(-65%) rotate(45deg);
   transition: transform 240ms cubic-bezier(.2, .7, .2, 1);
 }
 
 .issue-panel:not([data-open='true']) .issue-panel__chevron {
-  transform: translateY(-2px) rotate(225deg);
+  transform: translateY(-35%) rotate(225deg);
 }
 
 .issue-panel__heading:hover .issue-panel__chevron {
@@ -376,6 +374,10 @@
   min-height: 0;
   max-height: min(56svh, 460px);
   padding-inline: 14px;
+  overflow-y: hidden;
+}
+
+.issue-panel[data-scrollable='true'] .issue-list {
   overflow-y: auto;
 }
 
