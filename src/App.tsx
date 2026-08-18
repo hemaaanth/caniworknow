@@ -10,6 +10,7 @@ import {
 } from './lib/status'
 import {
   formatSnapshotChecked,
+  snapshotAnswerWord,
   snapshotIssueLabel,
   type StatusSnapshot,
 } from './lib/snapshot-presentation'
@@ -190,14 +191,19 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
   const { dark, reducedMotion, coarsePointer, compact } = useMediaState()
   const pointerFrame = useRef<number | null>(null)
   const shader = useMemo(() => {
-    if (answer !== 'no') {
+    if (answer === 'yes') {
       return dark
         ? { colors: ['#071915', '#17453a', '#395c48', '#7a654c'], back: '#050806' }
         : { colors: ['#f4efe2', '#bfddcf', '#83c3aa', '#f0bea0'], back: '#f4efe2' }
     }
+    if (answer === 'no') {
+      return dark
+        ? { colors: ['#17090a', '#4f1017', '#af2932', '#80602d'], back: '#090505' }
+        : { colors: ['#f2e5da', '#eb7358', '#a31728', '#d9a342'], back: '#f2e5da' }
+    }
     return dark
-      ? { colors: ['#17090a', '#4f1017', '#af2932', '#80602d'], back: '#090505' }
-      : { colors: ['#f2e5da', '#eb7358', '#a31728', '#d9a342'], back: '#f2e5da' }
+      ? { colors: ['#100c08', '#2a2119', '#5f4937', '#8d7357'], back: '#080604' }
+      : { colors: ['#eee5d8', '#d7c0a0', '#b28a64', '#806348'], back: '#eee5d8' }
   }, [answer, dark])
 
   useEffect(() => {
@@ -332,9 +338,7 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
         <span className="wordmark">CAN I WORK NOW</span>
       </header>
 
-      {snapshot ? (
-        <span className="snapshot-marker">SNAPSHOT</span>
-      ) : (
+      {!snapshot && (
         <button
           type="button"
           className="share-status"
@@ -358,7 +362,7 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
       )}
 
       <section className="answer" aria-live="polite" aria-atomic="true">
-        <h1 className="answer__word">{displayAnswer(answer)}</h1>
+        <h1 className="answer__word">{snapshot ? snapshotAnswerWord(answer) : displayAnswer(answer)}</h1>
         <p className="sr-only">{description}</p>
         {snapshot && (
           <div className="snapshot-meta">
