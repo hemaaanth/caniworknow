@@ -37,6 +37,8 @@ export const DEFAULT_SOURCE_URLS: SourceUrls = {
 
 const SERVICE_IDS = Object.keys(DEFAULT_SOURCE_URLS) as ServiceId[]
 const REQUEST_TIMEOUT_MS = 4_500
+const MAX_OFFICIAL_BYTES = 512_000
+const MAX_COMMUNITY_BYTES = 1_000_000
 
 function requestInit(accept: string): RequestInit {
   return {
@@ -49,11 +51,35 @@ function requestInit(accept: string): RequestInit {
   }
 }
 
+async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) throw new Error('Response is too large')
+  if (!response.body) return ''
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let total = 0
+  let text = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel()
+      throw new Error('Response is too large')
+    }
+    text += decoder.decode(value, { stream: true })
+  }
+
+  return text + decoder.decode()
+}
+
 async function officialSource(fetcher: Fetcher, service: ServiceId, url: string): Promise<NormalizedSource> {
   try {
     const response = await fetcher(url, requestInit('application/json'))
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const parsed = parseOfficialStatus(service, await response.json() as RawStatusPage)
+    const parsed = parseOfficialStatus(service, JSON.parse(await readBoundedText(response, MAX_OFFICIAL_BYTES)) as RawStatusPage)
     return { id: `${service}-official`, label: 'Official', kind: 'official', url, ...parsed }
   } catch {
     return {
@@ -71,7 +97,7 @@ async function communitySource(fetcher: Fetcher, service: ServiceId, url: string
   try {
     const response = await fetcher(url, requestInit('text/html'))
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const parsed = parseCommunityStatus(await response.text())
+    const parsed = parseCommunityStatus(await readBoundedText(response, MAX_COMMUNITY_BYTES))
     return { id: `${service}-community`, label: 'StatusGator', kind: 'community', url, ...parsed }
   } catch {
     return {

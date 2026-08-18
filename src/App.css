@@ -117,16 +117,6 @@
   transform: none;
 }
 
-.share-feedback {
-  position: absolute;
-  z-index: 5;
-  top: clamp(50px, 5.5vw, 70px);
-  right: clamp(18px, 2.4vw, 40px);
-  font-size: 10px;
-  font-weight: 620;
-  letter-spacing: 0.03em;
-}
-
 .answer {
   position: absolute;
   inset: 0;

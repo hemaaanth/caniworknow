@@ -36,4 +36,24 @@ describe('collectLiveStatus', () => {
     expect(result.answer).toBe('unknown')
     expect(result.services.every((service) => service.health === 'unknown')).toBe(true)
   })
+
+  it('bounds upstream response bodies before parsing them', async () => {
+    const fetcher = vi.fn(async (input: string | URL) => {
+      const url = String(input)
+      if (url.includes('/official')) return new Response('x'.repeat(512_001), { status: 200 })
+      if (url.includes('/community')) return new Response('x'.repeat(1_000_001), { status: 200 })
+      return new Response('', { status: 204 })
+    })
+
+    const result = await collectLiveStatus(fetcher, {
+      github: ['https://test/github/official', 'https://test/github/community', 'https://test/github/probe'],
+      cloudflare: ['https://test/cloudflare/official', 'https://test/cloudflare/community', 'https://test/cloudflare/probe'],
+      claude: ['https://test/claude/official', 'https://test/claude/community', 'https://test/claude/probe'],
+      codex: ['https://test/codex/official', 'https://test/codex/community', 'https://test/codex/probe'],
+    })
+
+    expect(result.answer).toBe('unknown')
+    expect(result.services.every((service) => service.sources[0].health === 'unknown')).toBe(true)
+    expect(result.services.every((service) => service.sources[1].health === 'unknown')).toBe(true)
+  })
 })
