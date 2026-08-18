@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 const appCss = readFileSync(fileURLToPath(new URL('./App.css', import.meta.url)), 'utf8')
 const appSource = readFileSync(fileURLToPath(new URL('./App.tsx', import.meta.url)), 'utf8')
+const mainSource = readFileSync(fileURLToPath(new URL('./main.tsx', import.meta.url)), 'utf8')
 const indexHtml = readFileSync(fileURLToPath(new URL('../index.html', import.meta.url)), 'utf8')
 
 describe('first paint stability', () => {
@@ -18,6 +19,14 @@ describe('first paint stability', () => {
 
   it('uses a shader-like fallback before WebGL paints', () => {
     expect(appCss).toContain('background: var(--surface-fallback)')
+  })
+
+  it('renders live and snapshot states through the same instrument', () => {
+    expect(mainSource).toContain('<App snapshot={snapshot} />')
+    expect(appSource).toContain("snapshot ? ' snapshot-view' : ''")
+    expect(appSource.match(/<GrainGradient/g)).toHaveLength(1)
+    expect(appSource.match(/className="answer__word"/g)).toHaveLength(1)
+    expect(appSource.match(/<Systems services=/g)).toHaveLength(1)
   })
 
   it('keeps the mobile dashboard within the small viewport', () => {

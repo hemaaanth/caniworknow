@@ -57,7 +57,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
     response.setHeader('X-Content-Type-Options', 'nosniff')
     response.setHeader('X-Frame-Options', 'DENY')
     response.setHeader('Referrer-Policy', 'no-referrer')
-    response.setHeader('Content-Security-Policy', "default-src 'none'; connect-src 'self'; font-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
+    response.setHeader('Content-Security-Policy', "default-src 'none'; connect-src 'self'; font-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
     response.end(renderSnapshotHtml(snapshot, id, publicOrigin(), {
       snapshotPath: `/s/${id}`,
       imagePath: `/api/og-v4?id=${id}`,

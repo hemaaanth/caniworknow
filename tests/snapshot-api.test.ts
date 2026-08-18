@@ -167,8 +167,15 @@ describe('snapshot API handlers', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.headers.get('cache-control')).toContain('immutable')
+    expect(response.headers.get('content-security-policy')).toContain("script-src 'self' 'unsafe-inline'")
     expect(response.body).toContain('rel="canonical" href="https://caniworknow.com/s/A1b2C3d4"')
     expect(response.body).toContain('property="og:image" content="https://caniworknow.com/api/og-v4?id=A1b2C3d4"')
+    expect(response.body).toContain('<link rel="stylesheet" href="/assets/style.css"')
+    expect(response.body).toContain('globalThis.__CANIWORKNOW_SNAPSHOT__=')
+    expect(response.body).toContain('<script type="module" src="/assets/app.js"')
+    expect(response.body).not.toContain('<style>')
+    expect(response.body).not.toContain('label-bg')
+    expect(response.body).not.toContain('shader-drift')
     expect(blobMocks.get).toHaveBeenCalledWith('snapshots-v4/A1b2C3d4', { access: 'private' })
   })
 
