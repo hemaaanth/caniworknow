@@ -118,10 +118,9 @@
 }
 
 .snapshot-marker,
-.snapshot-checked,
-.snapshot-context,
-.snapshot-action {
-  position: absolute;
+.snapshot-timestamp,
+.snapshot-action,
+.snapshot-incident__heading {
   z-index: 5;
   margin: 0;
   color: inherit;
@@ -133,30 +132,52 @@
 }
 
 .snapshot-marker {
-  top: clamp(18px, 2.4vw, 36px);
-  right: clamp(18px, 2.4vw, 40px);
-  opacity: 0.58;
-}
-
-.snapshot-checked,
-.snapshot-action {
-  bottom: clamp(17px, 2.2vw, 32px);
-}
-
-.snapshot-checked {
-  left: clamp(18px, 2.4vw, 40px);
-  opacity: 0.62;
-}
-
-.snapshot-action {
+  position: absolute;
+  top: max(14px, calc(clamp(18px, 2.4vw, 36px) - 4px));
   right: clamp(18px, 2.4vw, 40px);
   display: inline-flex;
   align-items: center;
+  min-height: 32px;
+  opacity: 0.58;
+}
+
+.snapshot-meta {
+  grid-area: 1 / 1;
+  align-self: end;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transform: translateY(calc(100% + 20px));
+  pointer-events: auto;
+}
+
+.snapshot-timestamp {
+  padding: 8px 12px;
+  white-space: nowrap;
+  border-radius: 999px;
+  color: var(--panel-ink);
+  background: var(--panel);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel-ink) 14%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.snapshot-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
   color: inherit;
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, currentColor 32%, transparent);
+  backdrop-filter: blur(18px);
   text-decoration: none;
-  opacity: 0.68;
-  transition: opacity 180ms ease, transform 180ms ease;
+  opacity: 0.82;
+  transition: opacity 180ms ease, transform 180ms ease, background 180ms ease;
 }
 
 .snapshot-action:hover,
@@ -183,32 +204,6 @@
   stroke-linejoin: miter;
 }
 
-.snapshot-action__short {
-  display: none;
-}
-
-.snapshot-context {
-  left: 50%;
-  bottom: calc(clamp(17px, 2.2vw, 32px) + 48px);
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  white-space: nowrap;
-  opacity: 0.68;
-  transform: translateX(-50%);
-}
-
-.snapshot-context__divider {
-  width: 1px;
-  height: 10px;
-  background: currentColor;
-  opacity: 0.36;
-}
-
-.snapshot-context [data-state='changed'] {
-  opacity: 1;
-}
-
 .answer {
   position: absolute;
   inset: 0;
@@ -221,6 +216,7 @@
 }
 
 .answer__word {
+  grid-area: 1 / 1;
   margin: 0;
   font-size: clamp(10rem, 35vw, 42rem);
   font-weight: 850;
@@ -247,6 +243,10 @@
   letter-spacing: 0;
   text-indent: 0;
   opacity: 0.34;
+}
+
+.snapshot-view.instrument--no .answer {
+  padding-bottom: clamp(360px, 40svh, 440px);
 }
 
 .utility {
@@ -451,6 +451,46 @@
   grid-template-rows: 0fr;
 }
 
+.snapshot-incident {
+  width: min(370px, calc(100vw - 36px));
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--panel-ink);
+  background: var(--panel);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--panel-ink) 18%, transparent),
+    0 18px 50px rgba(17, 9, 4, 0.18);
+  backdrop-filter: blur(18px);
+  animation: panel-in 420ms cubic-bezier(.2, .7, .2, 1) both;
+}
+
+.snapshot-incident__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-ink) 16%, transparent);
+  font-size: 10px;
+}
+
+.snapshot-incident__heading span:first-child {
+  opacity: 0.54;
+}
+
+.snapshot-incident__list {
+  max-height: min(30svh, 260px);
+  padding-inline: 14px;
+  overflow-y: auto;
+}
+
+.snapshot-incident__empty {
+  margin: 0;
+  padding: 14px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.66;
+}
+
 /* Block padding is omitted so the collapsed row (0fr) closes flush. */
 .issue-list {
   min-height: 0;
@@ -583,33 +623,28 @@
     display: none;
   }
 
-  .snapshot-view .utility {
-    bottom: 58px;
+  .snapshot-meta {
+    gap: 9px;
+    transform: translateY(calc(100% + 15px));
   }
 
-  .snapshot-context {
-    bottom: 98px;
-    gap: 7px;
-    font-size: 9px;
-    letter-spacing: 0.045em;
-  }
-
-  .snapshot-checked,
+  .snapshot-timestamp,
   .snapshot-action {
     font-size: 9px;
     letter-spacing: 0.04em;
   }
 
-  .snapshot-checked {
-    max-width: 68%;
+  .snapshot-action {
+    min-height: 36px;
+    padding-inline: 12px;
   }
 
-  .snapshot-action__long {
-    display: none;
+  .snapshot-incident {
+    width: min(370px, calc(100vw - 24px));
   }
 
-  .snapshot-action__short {
-    display: inline;
+  .snapshot-incident__list {
+    max-height: min(28svh, 240px);
   }
 }
 
