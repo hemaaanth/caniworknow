@@ -42,7 +42,7 @@ export function snapshotIssueLabel(snapshot: StatusSnapshot): string {
 }
 
 export function snapshotAnswerWord(answer: Answer): string {
-  return answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : 'UNKNOWN'
+  return answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : 'DUNNO'
 }
 
 export function snapshotMatchesLive(snapshot: StatusSnapshot, current: LiveStatusResponse): boolean {

@@ -29,13 +29,18 @@ describe('first paint stability', () => {
     expect(appSource.match(/<Systems services=/g)).toHaveLength(1)
   })
 
-  it('keeps snapshot chrome stable and avoids revealing newer live status', () => {
-    const shareRule = appCss.match(/\.share-status\s*\{([\s\S]*?)\}/)?.[1] ?? ''
-    const markerRule = appCss.match(/\.snapshot-marker\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+  it('keeps snapshot metadata quiet and avoids revealing newer live status', () => {
+    const timestampRule = appCss.match(/\.snapshot-timestamp\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+    const actionRule = appCss.match(/\.snapshot-action\s*\{([\s\S]*?)\}/)?.[1] ?? ''
 
-    expect(markerRule).toContain('top: max(14px, calc(clamp(18px, 2.4vw, 36px) - 4px))')
-    expect(markerRule).toContain('min-height: 32px')
-    expect(markerRule.match(/top:[^;]+/)?.[0]).toBe(shareRule.match(/top:[^;]+/)?.[0])
+    expect(appSource).not.toContain('className="snapshot-marker"')
+    expect(appCss).not.toContain('.snapshot-marker')
+    expect(timestampRule).toContain('opacity: 0.76')
+    expect(timestampRule).not.toContain('background:')
+    expect(timestampRule).not.toContain('border-radius:')
+    expect(actionRule).toContain('background: var(--panel)')
+    expect(actionRule).toContain('justify-content: space-between')
+    expect(actionRule).not.toContain('border-radius:')
     expect(appCss).toMatch(/\.answer__word\s*\{[\s\S]*?grid-area:\s*1 \/ 1/)
     expect(appCss).toMatch(/\.snapshot-meta\s*\{[\s\S]*?grid-area:\s*1 \/ 1/)
     expect(appSource).toContain('SNAPSHOT AT {snapshotMoment}')
@@ -51,6 +56,12 @@ describe('first paint stability', () => {
     expect(appSource).toContain('POINT IN TIME')
     expect(appSource).toContain('issue.name')
     expect(appSource).toContain('issue.detail')
+  })
+
+  it('renders the established DUNNO verdict for unknown snapshots without changing live loading', () => {
+    expect(appSource).toContain('snapshot ? snapshotAnswerWord(answer) : displayAnswer(answer)')
+    expect(appSource).toContain('snapshotAnswerWord')
+    expect(appCss).toMatch(/\.instrument--unknown \.answer__word\s*\{[\s\S]*?opacity:\s*1/)
   })
 
   it('keeps the mobile dashboard within the small viewport', () => {
