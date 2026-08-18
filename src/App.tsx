@@ -51,6 +51,28 @@ function useMediaState() {
   return media
 }
 
+async function copyText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value)
+      return
+    } catch {
+      // Fall through for browsers that expose the API but deny the write.
+    }
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.readOnly = true
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  textarea.remove()
+  if (!copied) throw new Error('Clipboard write failed')
+}
+
 function ServiceIcon({ id }: { id: ServiceId }) {
   const brand = id === 'codex' ? 'openai' : id
   return <span className={`brand-mark brand-mark--${brand}`} aria-hidden="true" />
@@ -261,9 +283,7 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
       })
       if (!response.ok) throw new Error(`Share request failed: ${response.status}`)
       const snapshot = await response.json() as { url: string; answer: Answer; checkedAt: string }
-      if (snapshot.answer !== answer || snapshot.checkedAt !== checkedAt) {
-        throw new Error('Snapshot does not match the displayed status')
-      }
+      if (!/^https:\/\/[^/]+\/s\//.test(snapshot.url)) throw new Error('Snapshot URL is invalid')
       const title = `${snapshot.answer.toUpperCase()} — Can I Work Now?`
       if ((coarsePointer || compact) && navigator.share) {
         try {
@@ -277,7 +297,7 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
           }
         }
       }
-      await navigator.clipboard.writeText(snapshot.url)
+      await copyText(snapshot.url)
       setShareState('copied')
       window.setTimeout(() => setShareState('idle'), 2400)
     } catch {
