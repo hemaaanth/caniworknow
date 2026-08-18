@@ -29,6 +29,30 @@ describe('first paint stability', () => {
     expect(appSource.match(/<Systems services=/g)).toHaveLength(1)
   })
 
+  it('keeps snapshot chrome stable and avoids revealing newer live status', () => {
+    const shareRule = appCss.match(/\.share-status\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+    const markerRule = appCss.match(/\.snapshot-marker\s*\{([\s\S]*?)\}/)?.[1] ?? ''
+
+    expect(markerRule).toContain('top: max(14px, calc(clamp(18px, 2.4vw, 36px) - 4px))')
+    expect(markerRule).toContain('min-height: 32px')
+    expect(markerRule.match(/top:[^;]+/)?.[0]).toBe(shareRule.match(/top:[^;]+/)?.[0])
+    expect(appCss).toMatch(/\.answer__word\s*\{[\s\S]*?grid-area:\s*1 \/ 1/)
+    expect(appCss).toMatch(/\.snapshot-meta\s*\{[\s\S]*?grid-area:\s*1 \/ 1/)
+    expect(appSource).toContain('SNAPSHOT AT {snapshotMoment}')
+    expect(appSource).toContain('className="snapshot-action"')
+    expect(appSource).not.toContain('snapshot-context')
+    expect(appSource).not.toContain('snapshotMatchesLive')
+    expect(appSource).not.toContain('STILL ${status.answer')
+  })
+
+  it('shows immutable incident specifics only on no snapshots', () => {
+    expect(appSource).toContain("{answer === 'no' && (")
+    expect(appSource).toContain('className="snapshot-incident"')
+    expect(appSource).toContain('POINT IN TIME')
+    expect(appSource).toContain('issue.name')
+    expect(appSource).toContain('issue.detail')
+  })
+
   it('keeps the mobile dashboard within the small viewport', () => {
     expect(appCss).toContain('height: 100svh')
     expect(appCss).not.toMatch(/body\s*\{\s*overflow:\s*auto/)

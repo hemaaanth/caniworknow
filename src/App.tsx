@@ -11,7 +11,6 @@ import {
 import {
   formatSnapshotChecked,
   snapshotIssueLabel,
-  snapshotMatchesLive,
   type StatusSnapshot,
 } from './lib/snapshot-presentation'
 import './App.css'
@@ -166,7 +165,7 @@ function useLiveStatus() {
 }
 
 function App({ snapshot }: { snapshot?: StatusSnapshot }) {
-  const { status, liveResolved, liveError } = useLiveStatus()
+  const { status, liveResolved } = useLiveStatus()
   const snapshotServices = useMemo(() => snapshot && FALLBACK_SERVICES.map((service) => ({
     ...service,
     health: snapshot.affected.includes(service.id)
@@ -252,20 +251,9 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
   }
 
   const issueSummary = issues.length === 1 ? '1 SERVICE AFFECTED' : `${issues.length} SERVICES AFFECTED`
-  const snapshotSummary = snapshot?.answer === 'no'
-    ? issues.length === 0 ? 'SERVICE ISSUE CAPTURED' : issueSummary
-    : snapshot?.answer === 'yes' ? 'ALL SYSTEMS OPERATIONAL' : 'STATUS UNCONFIRMED'
-  const comparison = !snapshot
-    ? null
-    : status
-      ? snapshotMatchesLive(snapshot, status)
-        ? Date.parse(status.checkedAt) > Date.parse(snapshot.checkedAt)
-          ? { label: `STILL ${status.answer.toUpperCase()} · NEWER CHECK`, state: 'current' }
-          : { label: `STILL ${status.answer.toUpperCase()}`, state: 'current' }
-        : { label: `NOW ${status.answer.toUpperCase()} · STATUS CHANGED`, state: 'changed' }
-      : liveError
-        ? { label: 'LIVE CHECK UNAVAILABLE', state: 'error' }
-        : { label: 'CHECKING LIVE', state: 'checking' }
+  const snapshotMoment = snapshot
+    ? formatSnapshotChecked(snapshot.checkedAt).replace(/^Checked /, '')
+    : ''
 
   const handlePanelToggle = () => {
     setPanelScrollable(false)
@@ -372,29 +360,43 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
       <section className="answer" aria-live="polite" aria-atomic="true">
         <h1 className="answer__word">{displayAnswer(answer)}</h1>
         <p className="sr-only">{description}</p>
+        {snapshot && (
+          <div className="snapshot-meta">
+            <p className="snapshot-timestamp">SNAPSHOT AT {snapshotMoment}</p>
+            <a className="snapshot-action" href="/" aria-label="View live status">
+              <span>VIEW LIVE STATUS</span>
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M5 11 11 5M6.5 5H11v4.5" />
+              </svg>
+            </a>
+            {answer === 'no' && (
+              <aside className="snapshot-incident" aria-label="Issues captured in this status snapshot">
+                <div className="snapshot-incident__heading">
+                  <span>POINT IN TIME</span>
+                  <span>{issues.length === 0 ? 'ISSUE CAPTURED' : issueSummary}</span>
+                </div>
+                <div className="snapshot-incident__list">
+                  {issues.length === 0 ? (
+                    <p className="snapshot-incident__empty">A monitored service had an issue when this snapshot was created.</p>
+                  ) : issues.map((issue, index) => (
+                    <article className="issue" key={issue.id}>
+                      <div className="issue__index">{String(index + 1).padStart(2, '0')}</div>
+                      <div>
+                        <h2>{issue.name}</h2>
+                        <p>{issue.detail}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </aside>
+            )}
+          </div>
+        )}
       </section>
 
       <footer className="utility">
         <Systems services={services} />
       </footer>
-
-      {snapshot && comparison && (
-        <>
-          <div className="snapshot-context" aria-live="polite">
-            <span>{snapshotSummary}</span>
-            <span className="snapshot-context__divider" aria-hidden="true" />
-            <span data-state={comparison.state}>{comparison.label}</span>
-          </div>
-          <p className="snapshot-checked">{formatSnapshotChecked(snapshot.checkedAt)}</p>
-          <a className="snapshot-action" href="/" aria-label="View live status">
-            <span className="snapshot-action__long">VIEW LIVE STATUS</span>
-            <span className="snapshot-action__short">LIVE</span>
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-              <path d="M5 11 11 5M6.5 5H11v4.5" />
-            </svg>
-          </a>
-        </>
-      )}
 
       {!snapshot && answer === 'no' && (
         <aside
