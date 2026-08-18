@@ -8,6 +8,12 @@ import {
   type ServiceId,
   type ServiceStatus,
 } from './lib/status'
+import {
+  formatSnapshotChecked,
+  snapshotIssueLabel,
+  snapshotMatchesLive,
+  type StatusSnapshot,
+} from './lib/snapshot-presentation'
 import './App.css'
 
 type MediaState = {
@@ -43,51 +49,6 @@ function useMediaState() {
   }, [])
 
   return media
-}
-
-function readCachedStatus(): LiveStatusResponse | null {
-  try {
-    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '') as LiveStatusResponse
-    if (Date.now() - Date.parse(cached.checkedAt) > CACHE_MAX_AGE_MS) return null
-    return cached
-  } catch {
-    return null
-  }
-}
-
-function useLiveStatus() {
-  const [status, setStatus] = useState<LiveStatusResponse | null>(readCachedStatus)
-  const [liveResolved, setLiveResolved] = useState(false)
-
-  useEffect(() => {
-    const controller = new AbortController()
-
-    const refresh = async () => {
-      try {
-        const response = await fetch('/api/status', {
-          headers: { accept: 'application/json' },
-          signal: controller.signal,
-        })
-        if (!response.ok) throw new Error(`Status request failed: ${response.status}`)
-        const next = await response.json() as LiveStatusResponse
-        setStatus(next)
-        setLiveResolved(true)
-        localStorage.setItem(CACHE_KEY, JSON.stringify(next))
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        setStatus((current) => current ?? readCachedStatus())
-      }
-    }
-
-    void refresh()
-    const interval = window.setInterval(refresh, 60_000)
-    return () => {
-      controller.abort()
-      window.clearInterval(interval)
-    }
-  }, [])
-
-  return { status, liveResolved }
 }
 
 function ServiceIcon({ id }: { id: ServiceId }) {
@@ -134,11 +95,72 @@ const FALLBACK_SERVICES: ServiceStatus[] = (['github', 'cloudflare', 'claude', '
   }],
 }))
 
-function App() {
-  const { status, liveResolved } = useLiveStatus()
-  const answer: Answer = status?.answer ?? 'unknown'
-  const services = status?.services ?? FALLBACK_SERVICES
-  const checkedAt = status?.checkedAt
+function readCachedStatus(): LiveStatusResponse | null {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? '') as LiveStatusResponse
+    if (Date.now() - Date.parse(cached.checkedAt) > CACHE_MAX_AGE_MS) return null
+    return cached
+  } catch {
+    return null
+  }
+}
+
+function useLiveStatus() {
+  const [status, setStatus] = useState<LiveStatusResponse | null>(readCachedStatus)
+  const [liveResolved, setLiveResolved] = useState(false)
+  const [liveError, setLiveError] = useState(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/status', {
+          headers: { accept: 'application/json' },
+          signal: controller.signal,
+        })
+        if (!response.ok) throw new Error(`Status request failed: ${response.status}`)
+        const next = await response.json() as LiveStatusResponse
+        setStatus(next)
+        setLiveResolved(true)
+        setLiveError(false)
+        localStorage.setItem(CACHE_KEY, JSON.stringify(next))
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        setStatus((current) => current ?? readCachedStatus())
+        setLiveError(true)
+      }
+    }
+
+    void refresh()
+    const interval = window.setInterval(refresh, 60_000)
+    return () => {
+      controller.abort()
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  return { status, liveResolved, liveError }
+}
+
+function App({ snapshot }: { snapshot?: StatusSnapshot }) {
+  const { status, liveResolved, liveError } = useLiveStatus()
+  const snapshotServices = useMemo(() => snapshot && FALLBACK_SERVICES.map((service) => ({
+    ...service,
+    health: snapshot.affected.includes(service.id)
+      ? 'degraded' as const
+      : snapshot.answer === 'unknown'
+        ? 'unknown' as const
+        : 'operational' as const,
+    detail: snapshot.affected.includes(service.id)
+      ? 'Affected when this snapshot was checked'
+      : snapshot.answer === 'unknown'
+        ? 'Status was not confirmed'
+        : 'Operational when this snapshot was checked',
+  })), [snapshot])
+  const answer: Answer = snapshot?.answer ?? status?.answer ?? 'unknown'
+  const services = snapshotServices ?? status?.services ?? FALLBACK_SERVICES
+  const checkedAt = snapshot?.checkedAt ?? status?.checkedAt
   const issues = services.filter((service) => service.health === 'outage' || service.health === 'degraded')
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
   const [panelOpen, setPanelOpen] = useState(false)
@@ -147,7 +169,6 @@ function App() {
   const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle')
   const { dark, reducedMotion, coarsePointer, compact } = useMediaState()
   const pointerFrame = useRef<number | null>(null)
-
   const shader = useMemo(() => {
     if (answer !== 'no') {
       return dark
@@ -165,24 +186,26 @@ function App() {
     icon.type = 'image/svg+xml'
     icon.href = `data:image/svg+xml,${encodeURIComponent(createFaviconSvg(answer))}`
     if (!icon.parentNode) document.head.appendChild(icon)
-    document.title = `${answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : 'CHECKING'} — Can I Work Now`
-  }, [answer])
+    document.title = snapshot
+      ? `${answer.toUpperCase()} — Status snapshot`
+      : `${answer === 'yes' ? 'YES' : answer === 'no' ? 'NO' : 'CHECKING'} — Can I Work Now`
+  }, [answer, snapshot])
 
   useEffect(() => {
-    if (answer !== 'no') {
+    if (snapshot || answer !== 'no') {
       setPanelOpen(false)
       setPanelScrollable(false)
     }
-  }, [answer])
+  }, [answer, snapshot])
 
   useEffect(() => {
-    if (!panelOpen) return
+    if (snapshot || !panelOpen) return
     const timeout = window.setTimeout(() => setPanelScrollable(true), 320)
     return () => window.clearTimeout(timeout)
-  }, [panelOpen])
+  }, [panelOpen, snapshot])
 
   useEffect(() => {
-    if (answer !== 'no' || !panelOpen) return
+    if (snapshot || answer !== 'no' || !panelOpen) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setPanelScrollable(false)
@@ -191,10 +214,10 @@ function App() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [answer, panelOpen])
+  }, [answer, panelOpen, snapshot])
 
   useEffect(() => {
-    if (!liveResolved || !checkedAt) return
+    if (snapshot || !liveResolved || !checkedAt) return
     setShareSnapshot(null)
     const controller = new AbortController()
     let active = true
@@ -218,7 +241,7 @@ function App() {
       active = false
       controller.abort()
     }
-  }, [answer, checkedAt, liveResolved])
+  }, [answer, checkedAt, liveResolved, snapshot])
 
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
     if (!coarsePointer && pointerFrame.current === null) {
@@ -234,8 +257,21 @@ function App() {
     }
   }
 
-  const answerWord = displayAnswer(answer)
   const issueSummary = issues.length === 1 ? '1 SERVICE AFFECTED' : `${issues.length} SERVICES AFFECTED`
+  const snapshotSummary = snapshot?.answer === 'no'
+    ? issues.length === 0 ? 'SERVICE ISSUE CAPTURED' : issueSummary
+    : snapshot?.answer === 'yes' ? 'ALL SYSTEMS OPERATIONAL' : 'STATUS UNCONFIRMED'
+  const comparison = !snapshot
+    ? null
+    : status
+      ? snapshotMatchesLive(snapshot, status)
+        ? Date.parse(status.checkedAt) > Date.parse(snapshot.checkedAt)
+          ? { label: `STILL ${status.answer.toUpperCase()} · NEWER CHECK`, state: 'current' }
+          : { label: `STILL ${status.answer.toUpperCase()}`, state: 'current' }
+        : { label: `NOW ${status.answer.toUpperCase()} · STATUS CHANGED`, state: 'changed' }
+      : liveError
+        ? { label: 'LIVE CHECK UNAVAILABLE', state: 'error' }
+        : { label: 'CHECKING LIVE', state: 'checking' }
 
   const handlePanelToggle = () => {
     setPanelScrollable(false)
@@ -263,8 +299,19 @@ function App() {
     }
   }
 
+  const description = snapshot
+    ? `${snapshotIssueLabel(snapshot)}. ${formatSnapshotChecked(snapshot.checkedAt)}.`
+    : answer === 'yes'
+    ? 'Yes. All monitored systems are operational.'
+    : answer === 'no'
+      ? `No. ${issues.map((issue) => issue.name).join(', ')} ${issues.length === 1 ? 'has' : 'have'} a current issue.`
+      : 'Checking the live status of monitored systems.'
+
   return (
-    <main className={`instrument instrument--${answer}`} onPointerMove={handlePointerMove}>
+    <main
+      className={`instrument instrument--${answer}${snapshot ? ' snapshot-view' : ''}`}
+      onPointerMove={handlePointerMove}
+    >
       <div className="shader" aria-hidden="true">
         <GrainGradient
           width="100%"
@@ -290,38 +337,55 @@ function App() {
         <span className="wordmark">CAN I WORK NOW</span>
       </header>
 
-      <button
-        type="button"
-        className="share-status"
-        aria-label="Share current status snapshot"
-        disabled={!shareSnapshot}
-        onClick={() => { void handleShare() }}
-      >
-        <svg className="share-status__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M5 11 11 5M6.5 5H11v4.5" />
-        </svg>
-        <span className="share-status__label">SHARE</span>
-      </button>
-      <span className="share-feedback" role="status" aria-live="polite">
-        {shareState === 'copied' ? 'Snapshot link copied' : shareState === 'error' ? 'Could not create snapshot' : ''}
-      </span>
+      {snapshot ? (
+        <span className="snapshot-marker">SNAPSHOT</span>
+      ) : (
+        <button
+          type="button"
+          className="share-status"
+          aria-label="Share current status snapshot"
+          disabled={!shareSnapshot}
+          onClick={() => { void handleShare() }}
+        >
+          <svg className="share-status__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M5 11 11 5M6.5 5H11v4.5" />
+          </svg>
+          <span className="share-status__label">SHARE</span>
+        </button>
+      )}
 
       <section className="answer" aria-live="polite" aria-atomic="true">
-        <h1 className="answer__word">{answerWord}</h1>
-        <p className="sr-only">
-          {answer === 'yes'
-            ? 'Yes. All monitored systems are operational.'
-            : answer === 'no'
-              ? `No. ${issues.map((issue) => issue.name).join(', ')} ${issues.length === 1 ? 'has' : 'have'} a current issue.`
-              : 'Checking the live status of monitored systems.'}
-        </p>
+        <h1 className="answer__word">{displayAnswer(answer)}</h1>
+        <p className="sr-only">{description}</p>
       </section>
 
       <footer className="utility">
         <Systems services={services} />
       </footer>
 
-      {answer === 'no' && (
+      {snapshot && comparison ? (
+        <>
+          <div className="snapshot-context" aria-live="polite">
+            <span>{snapshotSummary}</span>
+            <span className="snapshot-context__divider" aria-hidden="true" />
+            <span data-state={comparison.state}>{comparison.label}</span>
+          </div>
+          <p className="snapshot-checked">{formatSnapshotChecked(snapshot.checkedAt)}</p>
+          <a className="snapshot-action" href="/" aria-label="View live status">
+            <span className="snapshot-action__long">VIEW LIVE STATUS</span>
+            <span className="snapshot-action__short">LIVE</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M5 11 11 5M6.5 5H11v4.5" />
+            </svg>
+          </a>
+        </>
+      ) : (
+        <span className="share-feedback" role="status" aria-live="polite">
+          {shareState === 'copied' ? 'Snapshot link copied' : shareState === 'error' ? 'Could not create snapshot' : ''}
+        </span>
+      )}
+
+      {!snapshot && answer === 'no' && (
         <aside
           className="issue-panel"
           data-open={panelOpen}
