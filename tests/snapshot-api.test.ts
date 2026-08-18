@@ -59,6 +59,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   delete process.env.SNAPSHOT_SECRET
   delete process.env.PUBLIC_ORIGIN
+  delete process.env.VERCEL_ENV
+  delete process.env.VERCEL_URL
 })
 
 describe('snapshot API handlers', () => {
@@ -111,6 +113,20 @@ describe('snapshot API handlers', () => {
       capturedAt: status.checkedAt,
     })
     expect(blobMocks.put).not.toHaveBeenCalled()
+  })
+
+  it('keeps preview snapshots on the deployment that signed them', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    process.env.VERCEL_ENV = 'preview'
+    process.env.VERCEL_URL = 'caniworknow-preview.example.test'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(status), { status: 200 })))
+    const response = new MockResponse()
+
+    await shareHandler({ method: 'POST', headers: { 'content-type': 'application/json' } }, response)
+
+    expect(response.statusCode).toBe(200)
+    const body = JSON.parse(response.body) as { url: string }
+    expect(body.url).toMatch(/^https:\/\/caniworknow-preview\.example\.test\/s\/v2\//)
   })
 
   it('rejects non-POST, cross-site, non-JSON, and oversized share requests', async () => {

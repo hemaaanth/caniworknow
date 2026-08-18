@@ -16,7 +16,10 @@ const SERVICE_IDS = new Set(['github', 'cloudflare', 'claude', 'codex'])
 const HEALTH_STATES = new Set(['operational', 'degraded', 'outage', 'unknown'])
 
 function publicOrigin(): string {
-  const origin = new URL(process.env.PUBLIC_ORIGIN ?? 'https://caniworknow.com')
+  const previewOrigin = process.env.VERCEL_ENV !== 'production' && process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : undefined
+  const origin = new URL(process.env.PUBLIC_ORIGIN ?? previewOrigin ?? 'https://caniworknow.com')
   if (origin.protocol !== 'https:' && origin.protocol !== 'http:') throw new Error('PUBLIC_ORIGIN must use HTTP(S)')
   return origin.origin
 }

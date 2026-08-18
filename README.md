@@ -20,7 +20,7 @@ The `/api/status` Vercel function uses request timeouts and five-minute CDN cach
 
 The homepage keeps a timeless social preview. On an intentional share, `/api/share` returns a self-contained signed, immutable snapshot URL containing the confirmed verdict, affected services, and check time. No database or Blob write is needed. `/s/v2/:token` renders snapshot-specific Open Graph/Twitter metadata and compares the captured verdict with the live API for human visitors. `/api/og-v2` generates a timestamped 1200×630 PNG that can be cached permanently because every snapshot URL is unique.
 
-Set a stable `SNAPSHOT_SECRET` of at least 32 characters in every Vercel environment. Do not rotate it casually: existing snapshot URLs are authenticated with this value and would stop resolving after rotation. `PUBLIC_ORIGIN` is optional in production and useful for local URL generation. `STATUS_ORIGIN` is only needed when a public preview URL must fetch status through a different internal origin.
+Set a stable `SNAPSHOT_SECRET` of at least 32 characters in every Vercel environment. Do not rotate the production value casually: existing production snapshot URLs are authenticated with it and would stop resolving after rotation. Preview can use a separate secret because generated preview links automatically stay on the deployment that signed them. `PUBLIC_ORIGIN` is optional in production and useful for local URL generation. `STATUS_ORIGIN` is only needed when a public preview URL must fetch status through a different internal origin.
 
 ## Abuse prevention
 
