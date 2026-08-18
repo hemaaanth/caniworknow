@@ -59,6 +59,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
   delete process.env.SNAPSHOT_SECRET
   delete process.env.PUBLIC_ORIGIN
+  delete process.env.VERCEL_ENV
+  delete process.env.VERCEL_URL
 })
 
 describe('snapshot API handlers', () => {
@@ -72,7 +74,8 @@ describe('snapshot API handlers', () => {
     expect(apiOgV4Source).toContain("../server/snapshot-image-v4.js")
     expect(apiOgV4Source).toContain('loadSnapshotTokenV4')
     expect(apiShareSource).toContain("../server/snapshot-v3.js")
-    expect(apiShareSource).toContain('storeSnapshotTokenV4')
+    expect(apiShareSource).toContain('snapshotUrl')
+    expect(apiShareSource).not.toContain('storeSnapshotTokenV4')
     expect(apiSnapshotV3Source).toContain("../server/snapshot-v3.js")
     expect(apiSnapshotV4Source).toContain("./snapshot-v3.js")
     expect(apiSnapshotV4Source).toContain('/api/og-v4?id=')
@@ -83,7 +86,7 @@ describe('snapshot API handlers', () => {
     expect(rewrites).toContainEqual({ source: '/s/:token', destination: '/api/snapshot-route?token=:token' })
   })
 
-  it('creates a signed URL from the CDN-backed current status', async () => {
+  it('creates a deterministic signed URL from the CDN-backed current status without storage', async () => {
     process.env.SNAPSHOT_SECRET = SECRET
     process.env.PUBLIC_ORIGIN = 'https://caniworknow.com'
     const fetchMock = vi.fn(async () => new Response(JSON.stringify(status), {
@@ -91,22 +94,66 @@ describe('snapshot API handlers', () => {
       headers: { 'content-type': 'application/json' },
     }))
     vi.stubGlobal('fetch', fetchMock)
-    blobMocks.put.mockResolvedValue({ url: 'private-blob-url' })
     const response = new MockResponse()
 
-    await shareHandler({ method: 'GET' }, response)
+    await shareHandler({ method: 'POST', headers: { 'content-type': 'application/json' } }, response)
 
     expect(response.statusCode).toBe(200)
     expect(fetchMock).toHaveBeenCalledWith('https://caniworknow.com/api/status', expect.any(Object))
     expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(response.headers.get('cdn-cache-control')).toContain('s-maxage=10')
-    const body = JSON.parse(response.body) as { url: string; answer: string }
+    expect(response.headers.has('cdn-cache-control')).toBe(false)
+    const body = JSON.parse(response.body) as { url: string; answer: string; checkedAt: string }
     expect(body.answer).toBe('yes')
-    expect(body.url).toMatch(/^https:\/\/caniworknow\.com\/s\/[A-Za-z0-9]{8}$/)
-    const [pathname, storedToken, options] = blobMocks.put.mock.calls[0]
-    expect(pathname).toMatch(/^snapshots-v4\/[A-Za-z0-9]{8}$/)
-    expect(parseStatusSnapshot(storedToken as string, SECRET)?.answer).toBe('yes')
-    expect(options).toMatchObject({ access: 'private', addRandomSuffix: false, allowOverwrite: false })
+    expect(body.url).toMatch(/^https:\/\/caniworknow\.com\/s\/v2\//)
+    const url = new URL(body.url)
+    const token = decodeURIComponent(url.pathname.slice('/s/v2/'.length))
+    expect(parseStatusSnapshot(token, SECRET)).toMatchObject({
+      answer: 'yes',
+      checkedAt: status.checkedAt,
+      capturedAt: status.checkedAt,
+    })
+    expect(blobMocks.put).not.toHaveBeenCalled()
+  })
+
+  it('keeps preview snapshots on the deployment that signed them', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    process.env.VERCEL_ENV = 'preview'
+    process.env.VERCEL_URL = 'caniworknow-preview.example.test'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(status), { status: 200 })))
+    const response = new MockResponse()
+
+    await shareHandler({ method: 'POST', headers: { 'content-type': 'application/json' } }, response)
+
+    expect(response.statusCode).toBe(200)
+    const body = JSON.parse(response.body) as { url: string }
+    expect(body.url).toMatch(/^https:\/\/caniworknow-preview\.example\.test\/s\/v2\//)
+  })
+
+  it('rejects non-POST, cross-site, non-JSON, and oversized share requests', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+
+    const wrongMethod = new MockResponse()
+    await shareHandler({ method: 'GET' }, wrongMethod)
+    expect(wrongMethod.statusCode).toBe(405)
+    expect(wrongMethod.headers.get('allow')).toBe('POST')
+
+    const crossSite = new MockResponse()
+    await shareHandler({
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'sec-fetch-site': 'cross-site' },
+    }, crossSite)
+    expect(crossSite.statusCode).toBe(403)
+
+    const nonJson = new MockResponse()
+    await shareHandler({ method: 'POST', headers: { 'content-type': 'text/plain' } }, nonJson)
+    expect(nonJson.statusCode).toBe(415)
+
+    const oversized = new MockResponse()
+    await shareHandler({
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': '1025' },
+    }, oversized)
+    expect(oversized.statusCode).toBe(413)
   })
 
   it('resolves an eight-character id to immutable snapshot metadata', async () => {
@@ -228,7 +275,7 @@ describe('snapshot API handlers', () => {
     vi.stubGlobal('fetch', fetchMock)
     const response = new MockResponse()
 
-    await shareHandler({ method: 'GET' }, response)
+    await shareHandler({ method: 'POST', headers: { 'content-type': 'application/json' } }, response)
 
     expect(response.statusCode).toBe(503)
     expect(fetchMock).not.toHaveBeenCalled()

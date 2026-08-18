@@ -133,7 +133,7 @@ function useLiveStatus() {
     }
 
     void refresh()
-    const interval = window.setInterval(refresh, 60_000)
+    const interval = window.setInterval(refresh, 300_000)
     return () => {
       controller.abort()
       window.clearInterval(interval)
@@ -165,8 +165,7 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
   const [shaderOffset, setShaderOffset] = useState({ x: 0, y: 0 })
   const [panelOpen, setPanelOpen] = useState(false)
   const [panelScrollable, setPanelScrollable] = useState(false)
-  const [shareSnapshot, setShareSnapshot] = useState<{ url: string; answer: Answer; checkedAt: string } | null>(null)
-  const [shareState, setShareState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [shareState, setShareState] = useState<'idle' | 'sharing' | 'copied' | 'error'>('idle')
   const { dark, reducedMotion, coarsePointer, compact } = useMediaState()
   const pointerFrame = useRef<number | null>(null)
   const shader = useMemo(() => {
@@ -216,33 +215,6 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [answer, panelOpen, snapshot])
 
-  useEffect(() => {
-    if (snapshot || !liveResolved || !checkedAt) return
-    setShareSnapshot(null)
-    const controller = new AbortController()
-    let active = true
-
-    const preloadSnapshot = async () => {
-      try {
-        const response = await fetch('/api/share', {
-          headers: { accept: 'application/json' },
-          signal: controller.signal,
-        })
-        if (!response.ok) throw new Error(`Share request failed: ${response.status}`)
-        const snapshot = await response.json() as { url: string; answer: Answer; checkedAt: string }
-        if (active && snapshot.answer === answer) setShareSnapshot(snapshot)
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-      }
-    }
-
-    void preloadSnapshot()
-    return () => {
-      active = false
-      controller.abort()
-    }
-  }, [answer, checkedAt, liveResolved, snapshot])
-
   const handlePointerMove = (event: React.PointerEvent<HTMLElement>) => {
     if (!coarsePointer && pointerFrame.current === null) {
       const clientX = event.clientX
@@ -279,18 +251,33 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
   }
 
   const handleShare = async () => {
-    if (!shareSnapshot) return
-    const title = `${shareSnapshot.answer.toUpperCase()} — Can I Work Now?`
+    if (!liveResolved || !checkedAt || shareState === 'sharing') return
+    setShareState('sharing')
     try {
+      const response = await fetch('/api/share', {
+        method: 'POST',
+        headers: { accept: 'application/json', 'content-type': 'application/json' },
+        body: '{}',
+      })
+      if (!response.ok) throw new Error(`Share request failed: ${response.status}`)
+      const snapshot = await response.json() as { url: string; answer: Answer; checkedAt: string }
+      if (snapshot.answer !== answer || snapshot.checkedAt !== checkedAt) {
+        throw new Error('Snapshot does not match the displayed status')
+      }
+      const title = `${snapshot.answer.toUpperCase()} — Can I Work Now?`
       if ((coarsePointer || compact) && navigator.share) {
         try {
-          await navigator.share({ title, text: 'Status snapshot from Can I Work Now?', url: shareSnapshot.url })
+          await navigator.share({ title, text: 'Status snapshot from Can I Work Now?', url: snapshot.url })
+          setShareState('idle')
           return
         } catch (error) {
-          if (error instanceof DOMException && error.name === 'AbortError') return
+          if (error instanceof DOMException && error.name === 'AbortError') {
+            setShareState('idle')
+            return
+          }
         }
       }
-      await navigator.clipboard.writeText(shareSnapshot.url)
+      await navigator.clipboard.writeText(snapshot.url)
       setShareState('copied')
       window.setTimeout(() => setShareState('idle'), 2400)
     } catch {
@@ -344,14 +331,22 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
           type="button"
           className="share-status"
           aria-label="Share current status snapshot"
-          disabled={!shareSnapshot}
+          disabled={!liveResolved || !checkedAt}
           onClick={() => { void handleShare() }}
         >
           <svg className="share-status__icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
             <path d="M5 11 11 5M6.5 5H11v4.5" />
           </svg>
-          <span className="share-status__label">SHARE</span>
+          <span className="share-status__label">
+            {shareState === 'copied' ? 'COPIED' : shareState === 'error' ? 'ERROR' : 'SHARE'}
+          </span>
         </button>
+      )}
+
+      {!snapshot && (
+        <span className="sr-only" role="status" aria-live="polite">
+          {shareState === 'copied' ? 'Snapshot link copied' : shareState === 'error' ? 'Could not create snapshot' : ''}
+        </span>
       )}
 
       <section className="answer" aria-live="polite" aria-atomic="true">
@@ -363,7 +358,7 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
         <Systems services={services} />
       </footer>
 
-      {snapshot && comparison ? (
+      {snapshot && comparison && (
         <>
           <div className="snapshot-context" aria-live="polite">
             <span>{snapshotSummary}</span>
@@ -379,10 +374,6 @@ function App({ snapshot }: { snapshot?: StatusSnapshot }) {
             </svg>
           </a>
         </>
-      ) : (
-        <span className="share-feedback" role="status" aria-live="polite">
-          {shareState === 'copied' ? 'Snapshot link copied' : shareState === 'error' ? 'Could not create snapshot' : ''}
-        </span>
       )}
 
       {!snapshot && answer === 'no' && (

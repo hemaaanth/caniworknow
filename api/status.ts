@@ -2,6 +2,7 @@ import { collectLiveStatus } from '../server/collect.js'
 
 interface RequestLike {
   method?: string
+  query?: Record<string, string | string[] | undefined>
 }
 
 interface ResponseLike {
@@ -18,10 +19,17 @@ export default async function handler(request: RequestLike, response: ResponseLi
     return
   }
 
+  if (request.query && Object.keys(request.query).length > 0) {
+    response.statusCode = 400
+    response.setHeader('Cache-Control', 'no-store')
+    response.end('Query parameters are not supported')
+    return
+  }
+
   const status = await collectLiveStatus()
   response.statusCode = 200
   response.setHeader('Content-Type', 'application/json; charset=utf-8')
-  response.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
-  response.setHeader('CDN-Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300')
+  response.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900')
+  response.setHeader('CDN-Cache-Control', 'public, s-maxage=300, stale-while-revalidate=900')
   response.end(JSON.stringify(status))
 }

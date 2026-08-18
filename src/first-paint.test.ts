@@ -35,21 +35,26 @@ describe('first paint stability', () => {
     expect(appCss).not.toContain('min-height: max(100svh, 740px)')
   })
 
-  it('preloads snapshots and keeps sharing visually stable', () => {
+  it('creates a snapshot only after an intentional share', () => {
     expect(appSource).toContain("fetch('/api/share'")
+    expect(appSource).toContain("method: 'POST'")
     expect(appSource).toContain('navigator.share')
     expect(appSource).toContain('navigator.clipboard.writeText')
     expect(appSource).toContain('if ((coarsePointer || compact) && navigator.share)')
     expect(appSource).toContain('liveResolved')
-    expect(appSource).toContain('snapshot.answer === answer')
-    expect(appSource).toContain('setShareSnapshot(null)')
+    expect(appSource).toContain('snapshot.answer !== answer')
+    expect(appSource).toContain('snapshot.checkedAt !== checkedAt')
+    expect(appSource).not.toContain('preloadSnapshot')
+    expect(appSource).not.toContain('shareSnapshot')
     expect(appSource).toContain('aria-label="Share current status snapshot"')
     expect(appSource).toContain('className="share-status__icon"')
     expect(appSource).toContain('className="share-status__label"')
-    expect(appSource).not.toContain("'creating'")
-    expect(appSource).not.toContain('CREATING')
+    expect(appSource).toContain("shareState === 'sharing'")
+    expect(appSource).toContain("shareState === 'copied'")
+    expect(appSource).toContain("shareState === 'error'")
     expect(appCss).not.toContain('font: 650 10px/1 inherit')
     expect(appCss).toContain('.share-status__label')
+    expect(appCss).not.toContain('.share-feedback')
   })
 
   it('matches the mobile share glyph to the wordmark cap height', () => {
