@@ -1,4 +1,5 @@
-import { parseStatusSnapshot, renderSnapshotHtml } from '../server/snapshot-v3.js'
+import { parseCompactStatusSnapshot } from '../server/snapshot-compact.js'
+import { renderSnapshotHtml } from '../server/snapshot-v3.js'
 
 interface RequestLike {
   method?: string
@@ -19,7 +20,7 @@ function publicOrigin(): string {
   return (process.env.PUBLIC_ORIGIN ?? 'https://caniworknow.com').replace(/\/$/, '')
 }
 
-export default async function handler(request: RequestLike, response: ResponseLike): Promise<void> {
+export default function handler(request: RequestLike, response: ResponseLike): void {
   if (request.method !== 'GET') {
     response.statusCode = 405
     response.setHeader('Allow', 'GET')
@@ -27,9 +28,8 @@ export default async function handler(request: RequestLike, response: ResponseLi
     return
   }
 
-  const secret = process.env.SNAPSHOT_SECRET ?? ''
   const token = first(request.query?.token)
-  const snapshot = parseStatusSnapshot(token, secret)
+  const snapshot = parseCompactStatusSnapshot(token, process.env.SNAPSHOT_SECRET ?? '')
   if (!snapshot) {
     response.statusCode = 404
     response.setHeader('Content-Type', 'text/plain; charset=utf-8')
@@ -44,6 +44,9 @@ export default async function handler(request: RequestLike, response: ResponseLi
   response.setHeader('X-Content-Type-Options', 'nosniff')
   response.setHeader('X-Frame-Options', 'DENY')
   response.setHeader('Referrer-Policy', 'no-referrer')
-  response.setHeader('Content-Security-Policy', "default-src 'none'; connect-src 'self'; font-src 'self'; img-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
-  response.end(renderSnapshotHtml(snapshot, token, publicOrigin()))
+  response.setHeader('Content-Security-Policy', "default-src 'none'; connect-src 'self'; font-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'")
+  response.end(renderSnapshotHtml(snapshot, token, publicOrigin(), {
+    snapshotPath: `/s/${token}`,
+    imagePath: `/api/og-v5?token=${encodeURIComponent(token)}`,
+  }))
 }

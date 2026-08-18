@@ -1,5 +1,7 @@
 import legacyHandler from './snapshot-v1.js'
 import currentHandler from './snapshot-v4.js'
+import compactHandler from './snapshot-compact.js'
+import { isCompactSnapshotToken } from '../server/snapshot-compact.js'
 import { isSnapshotId } from '../server/snapshot-store.js'
 
 interface RequestLike {
@@ -18,8 +20,13 @@ function first(value: string | string[] | undefined): string {
 }
 
 export default async function handler(request: RequestLike, response: ResponseLike): Promise<void> {
-  if (isSnapshotId(first(request.query?.token))) {
+  const token = first(request.query?.token)
+  if (isSnapshotId(token)) {
     await currentHandler(request, response)
+    return
+  }
+  if (isCompactSnapshotToken(token)) {
+    compactHandler(request, response)
     return
   }
   legacyHandler(request, response)

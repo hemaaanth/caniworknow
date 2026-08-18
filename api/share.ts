@@ -1,4 +1,4 @@
-import { createStatusSnapshot, snapshotUrl } from '../server/snapshot-v3.js'
+import { compactSnapshotUrl, createCompactStatusSnapshot } from '../server/snapshot-compact.js'
 import type { LiveStatusResponse } from '../src/lib/status.js'
 
 interface RequestLike {
@@ -106,8 +106,8 @@ export default async function handler(request: RequestLike, response: ResponseLi
   try {
     const origin = publicOrigin()
     const status = await readCurrentStatus(statusOrigin())
-    const token = createStatusSnapshot(status, secret, status.checkedAt)
-    const url = `${origin}${snapshotUrl(token)}`
+    const token = createCompactStatusSnapshot(status, secret)
+    const url = `${origin}${compactSnapshotUrl(token)}`
 
     response.statusCode = 200
     response.setHeader('Content-Type', 'application/json; charset=utf-8')
