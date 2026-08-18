@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,7 +12,6 @@ vi.mock('@vercel/blob', () => blobMocks)
 import ogV2Handler from '../api/og-v2.js'
 import ogV3Handler from '../api/og-v3.js'
 import ogV4Handler from '../api/og-v4.js'
-import ogV5Handler from '../api/og-v5.js'
 import shareHandler from '../api/share.js'
 import snapshotHandler from '../api/snapshot.js'
 import snapshotRouteHandler from '../api/snapshot-route.js'
@@ -36,10 +35,9 @@ const apiOgSource = readFileSync(fileURLToPath(new URL('../api/og.ts', import.me
 const apiOgV2Source = readFileSync(fileURLToPath(new URL('../api/og-v2.ts', import.meta.url)), 'utf8')
 const apiOgV3Source = readFileSync(fileURLToPath(new URL('../api/og-v3.ts', import.meta.url)), 'utf8')
 const apiOgV4Source = readFileSync(fileURLToPath(new URL('../api/og-v4.ts', import.meta.url)), 'utf8')
-const apiOgV5Source = readFileSync(fileURLToPath(new URL('../api/og-v5.ts', import.meta.url)), 'utf8')
 const apiShareSource = readFileSync(fileURLToPath(new URL('../api/share.ts', import.meta.url)), 'utf8')
 const apiSnapshotSource = readFileSync(fileURLToPath(new URL('../api/snapshot.ts', import.meta.url)), 'utf8')
-const apiSnapshotCompactSource = readFileSync(fileURLToPath(new URL('../api/snapshot-compact.ts', import.meta.url)), 'utf8')
+const apiSnapshotRouteSource = readFileSync(fileURLToPath(new URL('../api/snapshot-route.ts', import.meta.url)), 'utf8')
 const apiSnapshotV1Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v1.ts', import.meta.url)), 'utf8')
 const apiSnapshotV3Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v3.ts', import.meta.url)), 'utf8')
 const apiSnapshotV4Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v4.ts', import.meta.url)), 'utf8')
@@ -78,14 +76,13 @@ describe('snapshot API handlers', () => {
     expect(apiOgV3Source).not.toContain("../server/snapshot-image.js")
     expect(apiOgV4Source).toContain("../server/snapshot-image-v4.js")
     expect(apiOgV4Source).toContain('loadSnapshotTokenV4')
-    expect(apiOgV5Source).toContain("../server/snapshot-compact.js")
-    expect(apiOgV5Source).toContain("../server/snapshot-image-v4.js")
+    expect(apiOgV4Source).toContain("../server/snapshot-compact.js")
     expect(apiShareSource).toContain("../server/snapshot-compact.js")
     expect(apiShareSource).toContain('compactSnapshotUrl')
     expect(apiShareSource).not.toContain('storeSnapshotTokenV4')
     expect(apiSnapshotSource).toContain("../server/snapshot-v3.js")
-    expect(apiSnapshotCompactSource).toContain("../server/snapshot-v3.js")
-    expect(apiSnapshotCompactSource).toContain('/api/og-v5?token=')
+    expect(apiSnapshotRouteSource).toContain("../server/snapshot-v3.js")
+    expect(apiSnapshotRouteSource).toContain('/api/og-v4?token=')
     expect(apiSnapshotV3Source).toContain("../server/snapshot-v3.js")
     expect(apiSnapshotV4Source).toContain("./snapshot-v3.js")
     expect(apiSnapshotV4Source).toContain('/api/og-v4?id=')
@@ -94,6 +91,13 @@ describe('snapshot API handlers', () => {
     const rewrites = JSON.parse(vercelConfig).rewrites
     expect(rewrites).toContainEqual({ source: '/s/v2/:token', destination: '/api/snapshot?token=:token' })
     expect(rewrites).toContainEqual({ source: '/s/:token', destination: '/api/snapshot-route?token=:token' })
+  })
+
+  it('stays within the Vercel Hobby serverless function limit', () => {
+    const apiFiles = readdirSync(fileURLToPath(new URL('../api', import.meta.url)))
+      .filter((name) => name.endsWith('.ts'))
+
+    expect(apiFiles.length).toBeLessThanOrEqual(12)
   })
 
   it('creates a deterministic signed URL from the CDN-backed current status without storage', async () => {
@@ -203,7 +207,7 @@ describe('snapshot API handlers', () => {
     expect(response.statusCode).toBe(200)
     expect(response.headers.get('cache-control')).toContain('immutable')
     expect(response.body).toContain(`rel="canonical" href="https://caniworknow.com/s/${token}"`)
-    expect(response.body).toContain(`property="og:image" content="https://caniworknow.com/api/og-v5?token=${token}"`)
+    expect(response.body).toContain(`property="og:image" content="https://caniworknow.com/api/og-v4?token=${token}"`)
     expect(response.body).toContain('<link rel="stylesheet" href="/assets/style.css"')
     expect(response.body).toContain('globalThis.__CANIWORKNOW_SNAPSHOT__=')
     expect(response.body).toContain('<script type="module" src="/assets/app.js"')
@@ -350,7 +354,7 @@ describe('snapshot API handlers', () => {
       end(value?: string | Buffer) { body = value },
     }
 
-    await ogV5Handler({ method: 'GET', query: { token } }, response)
+    await ogV4Handler({ method: 'GET', query: { token } }, response)
 
     expect(statusCode).toBe(200)
     expect(headers.get('content-type')).toBe('image/png')

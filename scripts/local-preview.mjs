@@ -16,7 +16,7 @@ const shareHandler = (await vite.ssrLoadModule('/api/share.ts')).default
 const snapshotHandler = (await vite.ssrLoadModule('/api/snapshot.ts')).default
 const snapshotRouteHandler = (await vite.ssrLoadModule('/api/snapshot-route.ts')).default
 const ogHandler = (await vite.ssrLoadModule('/api/og-v2.ts')).default
-const compactOgHandler = (await vite.ssrLoadModule('/api/og-v5.ts')).default
+const currentOgHandler = (await vite.ssrLoadModule('/api/og-v4.ts')).default
 
 function query(searchParams) {
   const result = {}
@@ -51,8 +51,8 @@ const server = http.createServer(async (request, response) => {
       await ogHandler({ method: request.method, query: query(url.searchParams) }, response)
       return
     }
-    if (url.pathname === '/api/og-v5') {
-      await compactOgHandler({ method: request.method, query: query(url.searchParams) }, response)
+    if (url.pathname === '/api/og-v4') {
+      await currentOgHandler({ method: request.method, query: query(url.searchParams) }, response)
       return
     }
     vite.middlewares(request, response)

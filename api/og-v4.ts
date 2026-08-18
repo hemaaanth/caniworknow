@@ -1,3 +1,4 @@
+import { parseCompactStatusSnapshot } from '../server/snapshot-compact.js'
 import { loadSnapshotTokenV4 } from '../server/snapshot-store.js'
 import { renderSnapshotPng } from '../server/snapshot-image-v4.js'
 import { parseStatusSnapshot } from '../server/snapshot-v3.js'
@@ -32,9 +33,18 @@ export default async function handler(request: RequestLike, response: ResponseLi
     return
   }
 
+  const compactToken = first(request.query?.token)
+  const compactSnapshot = compactToken ? parseCompactStatusSnapshot(compactToken, secret) : null
+  if (compactToken && !compactSnapshot) {
+    response.statusCode = 404
+    response.setHeader('Cache-Control', 'no-store')
+    response.end('Snapshot not found')
+    return
+  }
+
   try {
-    const token = await loadSnapshotTokenV4(first(request.query?.id))
-    const snapshot = token ? parseStatusSnapshot(token, secret) : null
+    const storedToken = compactSnapshot ? null : await loadSnapshotTokenV4(first(request.query?.id))
+    const snapshot = compactSnapshot ?? (storedToken ? parseStatusSnapshot(storedToken, secret) : null)
     if (!snapshot) {
       response.statusCode = 404
       response.setHeader('Cache-Control', 'no-store')
