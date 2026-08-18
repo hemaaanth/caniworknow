@@ -18,7 +18,7 @@ The `/api/status` Vercel function uses request timeouts and five-minute CDN cach
 
 ## Status snapshots
 
-The homepage keeps a timeless social preview. On an intentional share, `/api/share` returns a self-contained signed, immutable snapshot URL containing the confirmed verdict, affected services, and check time. No database or Blob write is needed. `/s/v2/:token` renders snapshot-specific Open Graph/Twitter metadata and compares the captured verdict with the live API for human visitors. `/api/og-v2` generates a timestamped 1200×630 PNG that can be cached permanently because every snapshot URL is unique.
+The homepage keeps a timeless social preview. On an intentional share, `/api/share` returns an 11-character signed, immutable snapshot code containing the confirmed verdict, affected services, and checked minute. No database or Blob write is needed. `/s/:token` renders through the same React instrument and Paper Design shader as the live homepage, adds snapshot-specific Open Graph/Twitter metadata, and compares the captured verdict with the live API. `/api/og-v4` generates a timestamped 1200×630 PNG that can be cached permanently because every snapshot URL is immutable. Previously issued `/s/v2/:token` links remain supported and now use the shared React presentation too.
 
 Set a stable `SNAPSHOT_SECRET` of at least 32 characters in every Vercel environment. Do not rotate the production value casually: existing production snapshot URLs are authenticated with it and would stop resolving after rotation. Preview can use a separate secret because generated preview links automatically stay on the deployment that signed them. `PUBLIC_ORIGIN` is optional in production and useful for local URL generation. `STATUS_ORIGIN` is only needed when a public preview URL must fetch status through a different internal origin.
 
@@ -26,7 +26,7 @@ Set a stable `SNAPSHOT_SECRET` of at least 32 characters in every Vercel environ
 
 - `/api/status` rejects cache-busting query parameters, serves a shared five-minute result from each CDN location, and serves stale data while one revalidation runs.
 - Official JSON and community HTML reads have strict decompressed-size limits in addition to request timeouts.
-- `/api/share` accepts small same-site or non-browser JSON `POST` requests only, validates the cached status shape, creates links only on an intentional share, and performs no storage write. The signed URL is deterministic for a given global check.
+- `/api/share` accepts small same-site or non-browser JSON `POST` requests only, validates the cached status shape, creates links only on an intentional share, and performs no storage write. The compact signed URL is deterministic for everyone sharing the same global checked minute.
 - New snapshot routes verify a bounded HMAC token before rendering; response headers disable framing, MIME sniffing, referrers, camera, microphone, and geolocation.
 
 Per-IP limiting belongs at the edge, not in function memory. Vercel Hobby includes one WAF rate-limit rule per project, so use that rule for `Path starts with /api/`: a fixed 60-second window, 60 requests per IP, and a `429` response. This covers the status, share, and generated-image functions without counting static page assets.
@@ -35,7 +35,7 @@ Pro and Enterprise plans can replace that broad Hobby rule with granular limits:
 
 - `POST /api/share`: 10 requests per minute per IP
 - `GET /api/status`: 30 requests per minute per IP
-- `GET /s/v2/*` and `GET /api/og-v2`: 120 requests per minute per IP
+- `GET /s/*` and `GET /api/og-*`: 120 requests per minute per IP
 
 Do not challenge non-browser traffic on these routes: the Omarchy widget is an intentional `curl` client. See Vercel's [WAF rate-limiting limits](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting#limits).
 

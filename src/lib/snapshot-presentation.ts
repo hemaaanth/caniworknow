@@ -1,4 +1,4 @@
-import type { Answer, LiveStatusResponse, ServiceId } from './status'
+import type { Answer, LiveStatusResponse, ServiceId } from './status.js'
 
 export const SERVICE_NAMES: Record<ServiceId, string> = {
   github: 'GitHub',

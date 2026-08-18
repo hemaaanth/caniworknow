@@ -1,4 +1,4 @@
-import { parseStatusSnapshot, renderSnapshotHtml } from '../server/snapshot.js'
+import { parseStatusSnapshot, renderSnapshotHtml } from '../server/snapshot-v3.js'
 
 interface RequestLike {
   method?: string

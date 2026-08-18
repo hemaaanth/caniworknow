@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +15,8 @@ import ogV4Handler from '../api/og-v4.js'
 import shareHandler from '../api/share.js'
 import snapshotHandler from '../api/snapshot.js'
 import snapshotRouteHandler from '../api/snapshot-route.js'
-import { createStatusSnapshot, parseStatusSnapshot } from '../server/snapshot.js'
+import { parseCompactStatusSnapshot } from '../server/snapshot-compact.js'
+import { createStatusSnapshot } from '../server/snapshot.js'
 import type { LiveStatusResponse } from '../src/lib/status.js'
 
 const SECRET = 'a-stable-test-secret-with-32-characters'
@@ -35,6 +36,8 @@ const apiOgV2Source = readFileSync(fileURLToPath(new URL('../api/og-v2.ts', impo
 const apiOgV3Source = readFileSync(fileURLToPath(new URL('../api/og-v3.ts', import.meta.url)), 'utf8')
 const apiOgV4Source = readFileSync(fileURLToPath(new URL('../api/og-v4.ts', import.meta.url)), 'utf8')
 const apiShareSource = readFileSync(fileURLToPath(new URL('../api/share.ts', import.meta.url)), 'utf8')
+const apiSnapshotSource = readFileSync(fileURLToPath(new URL('../api/snapshot.ts', import.meta.url)), 'utf8')
+const apiSnapshotRouteSource = readFileSync(fileURLToPath(new URL('../api/snapshot-route.ts', import.meta.url)), 'utf8')
 const apiSnapshotV1Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v1.ts', import.meta.url)), 'utf8')
 const apiSnapshotV3Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v3.ts', import.meta.url)), 'utf8')
 const apiSnapshotV4Source = readFileSync(fileURLToPath(new URL('../api/snapshot-v4.ts', import.meta.url)), 'utf8')
@@ -73,9 +76,13 @@ describe('snapshot API handlers', () => {
     expect(apiOgV3Source).not.toContain("../server/snapshot-image.js")
     expect(apiOgV4Source).toContain("../server/snapshot-image-v4.js")
     expect(apiOgV4Source).toContain('loadSnapshotTokenV4')
-    expect(apiShareSource).toContain("../server/snapshot-v3.js")
-    expect(apiShareSource).toContain('snapshotUrl')
+    expect(apiOgV4Source).toContain("../server/snapshot-compact.js")
+    expect(apiShareSource).toContain("../server/snapshot-compact.js")
+    expect(apiShareSource).toContain('compactSnapshotUrl')
     expect(apiShareSource).not.toContain('storeSnapshotTokenV4')
+    expect(apiSnapshotSource).toContain("../server/snapshot-v3.js")
+    expect(apiSnapshotRouteSource).toContain("../server/snapshot-v3.js")
+    expect(apiSnapshotRouteSource).toContain('/api/og-v4?token=')
     expect(apiSnapshotV3Source).toContain("../server/snapshot-v3.js")
     expect(apiSnapshotV4Source).toContain("./snapshot-v3.js")
     expect(apiSnapshotV4Source).toContain('/api/og-v4?id=')
@@ -84,6 +91,13 @@ describe('snapshot API handlers', () => {
     const rewrites = JSON.parse(vercelConfig).rewrites
     expect(rewrites).toContainEqual({ source: '/s/v2/:token', destination: '/api/snapshot?token=:token' })
     expect(rewrites).toContainEqual({ source: '/s/:token', destination: '/api/snapshot-route?token=:token' })
+  })
+
+  it('stays within the Vercel Hobby serverless function limit', () => {
+    const apiFiles = readdirSync(fileURLToPath(new URL('../api', import.meta.url)))
+      .filter((name) => name.endsWith('.ts'))
+
+    expect(apiFiles.length).toBeLessThanOrEqual(12)
   })
 
   it('creates a deterministic signed URL from the CDN-backed current status without storage', async () => {
@@ -104,13 +118,12 @@ describe('snapshot API handlers', () => {
     expect(response.headers.has('cdn-cache-control')).toBe(false)
     const body = JSON.parse(response.body) as { url: string; answer: string; checkedAt: string }
     expect(body.answer).toBe('yes')
-    expect(body.url).toMatch(/^https:\/\/caniworknow\.com\/s\/v2\//)
+    expect(body.url).toMatch(/^https:\/\/caniworknow\.com\/s\/[A-Za-z0-9_-]{11}$/)
     const url = new URL(body.url)
-    const token = decodeURIComponent(url.pathname.slice('/s/v2/'.length))
-    expect(parseStatusSnapshot(token, SECRET)).toMatchObject({
+    const token = decodeURIComponent(url.pathname.slice('/s/'.length))
+    expect(parseCompactStatusSnapshot(token, SECRET)).toMatchObject({
       answer: 'yes',
       checkedAt: status.checkedAt,
-      capturedAt: status.checkedAt,
     })
     expect(blobMocks.put).not.toHaveBeenCalled()
   })
@@ -126,7 +139,14 @@ describe('snapshot API handlers', () => {
 
     expect(response.statusCode).toBe(200)
     const body = JSON.parse(response.body) as { url: string }
-    expect(body.url).toMatch(/^https:\/\/caniworknow-preview\.example\.test\/s\/v2\//)
+    expect(body.url).toMatch(/^https:\/\/caniworknow-preview\.example\.test\/s\/[A-Za-z0-9_-]{11}$/)
+    const snapshotResponse = new MockResponse()
+    await snapshotRouteHandler({
+      method: 'GET',
+      query: { token: new URL(body.url).pathname.slice('/s/'.length) },
+    }, snapshotResponse)
+    expect(snapshotResponse.body).toContain(`rel="canonical" href="${body.url}"`)
+    expect(snapshotResponse.body).toContain('property="og:image" content="https://caniworknow-preview.example.test/api/og-v4?token=')
   })
 
   it('rejects non-POST, cross-site, non-JSON, and oversized share requests', async () => {
@@ -177,6 +197,29 @@ describe('snapshot API handlers', () => {
     expect(response.body).not.toContain('label-bg')
     expect(response.body).not.toContain('shader-drift')
     expect(blobMocks.get).toHaveBeenCalledWith('snapshots-v4/A1b2C3d4', { access: 'private' })
+  })
+
+  it('resolves a compact token through the shared React snapshot instrument without storage', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    process.env.PUBLIC_ORIGIN = 'https://caniworknow.com'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(status), { status: 200 })))
+    const shareResponse = new MockResponse()
+    await shareHandler({ method: 'POST', headers: { 'content-type': 'application/json' } }, shareResponse)
+    const { url } = JSON.parse(shareResponse.body) as { url: string }
+    const token = new URL(url).pathname.slice('/s/'.length)
+    const response = new MockResponse()
+
+    await snapshotRouteHandler({ method: 'GET', query: { token } }, response)
+
+    expect(response.statusCode).toBe(200)
+    expect(response.headers.get('cache-control')).toContain('immutable')
+    expect(response.body).toContain(`rel="canonical" href="https://caniworknow.com/s/${token}"`)
+    expect(response.body).toContain(`property="og:image" content="https://caniworknow.com/api/og-v4?token=${token}"`)
+    expect(response.body).toContain('<link rel="stylesheet" href="/assets/style.css"')
+    expect(response.body).toContain('globalThis.__CANIWORKNOW_SNAPSHOT__=')
+    expect(response.body).toContain('<script type="module" src="/assets/app.js"')
+    expect(response.body).not.toContain('<style>')
+    expect(blobMocks.get).not.toHaveBeenCalled()
   })
 
   it('preserves existing v3 short ids and their immutable OG route', async () => {
@@ -295,7 +338,37 @@ describe('snapshot API handlers', () => {
     expect(response.headers.get('content-security-policy')).toContain("font-src 'self'")
     expect(response.headers.get('x-frame-options')).toBe('DENY')
     expect(response.body).toContain(`rel="canonical" href="https://caniworknow.com/s/v2/${token}"`)
+    expect(response.body).toContain('<link rel="stylesheet" href="/assets/style.css"')
+    expect(response.body).toContain('globalThis.__CANIWORKNOW_SNAPSHOT__=')
+    expect(response.body).toContain('<script type="module" src="/assets/app.js"')
+    expect(response.body).not.toContain('<style>')
     expect(response.body).not.toContain('evil.example')
+  })
+
+  it('serves a compact snapshot OG card as an immutable PNG', async () => {
+    process.env.SNAPSHOT_SECRET = SECRET
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(status), { status: 200 })))
+    const shareResponse = new MockResponse()
+    await shareHandler({ method: 'POST', headers: { 'content-type': 'application/json' } }, shareResponse)
+    const token = new URL((JSON.parse(shareResponse.body) as { url: string }).url).pathname.slice('/s/'.length)
+    const headers = new Map<string, string | number>()
+    let statusCode = 200
+    let body: string | Buffer | undefined
+    const response = {
+      get statusCode() { return statusCode },
+      set statusCode(value: number) { statusCode = value },
+      setHeader(name: string, value: string | number) { headers.set(name.toLowerCase(), value) },
+      end(value?: string | Buffer) { body = value },
+    }
+
+    await ogV4Handler({ method: 'GET', query: { token } }, response)
+
+    expect(statusCode).toBe(200)
+    expect(headers.get('content-type')).toBe('image/png')
+    expect(headers.get('cache-control')).toContain('immutable')
+    expect(Buffer.isBuffer(body)).toBe(true)
+    expect((body as Buffer).readUInt32BE(16)).toBe(1200)
+    expect((body as Buffer).readUInt32BE(20)).toBe(630)
   })
 
   it('serves the versioned OG card as an immutable PNG', async () => {
