@@ -140,6 +140,13 @@ describe('snapshot API handlers', () => {
     expect(response.statusCode).toBe(200)
     const body = JSON.parse(response.body) as { url: string }
     expect(body.url).toMatch(/^https:\/\/caniworknow-preview\.example\.test\/s\/[A-Za-z0-9_-]{11}$/)
+    const snapshotResponse = new MockResponse()
+    await snapshotRouteHandler({
+      method: 'GET',
+      query: { token: new URL(body.url).pathname.slice('/s/'.length) },
+    }, snapshotResponse)
+    expect(snapshotResponse.body).toContain(`rel="canonical" href="${body.url}"`)
+    expect(snapshotResponse.body).toContain('property="og:image" content="https://caniworknow-preview.example.test/api/og-v4?token=')
   })
 
   it('rejects non-POST, cross-site, non-JSON, and oversized share requests', async () => {

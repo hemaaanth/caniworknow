@@ -20,7 +20,10 @@ function first(value: string | string[] | undefined): string {
 }
 
 function publicOrigin(): string {
-  return (process.env.PUBLIC_ORIGIN ?? 'https://caniworknow.com').replace(/\/$/, '')
+  const previewOrigin = process.env.VERCEL_ENV !== 'production' && process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : undefined
+  return new URL(process.env.PUBLIC_ORIGIN ?? previewOrigin ?? 'https://caniworknow.com').origin
 }
 
 function serveCompactSnapshot(token: string, response: ResponseLike): void {
